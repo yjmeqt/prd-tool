@@ -17,7 +17,21 @@ From any worktree:
 npx skills add yjmeqt/prd-tool
 ```
 
-This populates `.claude/skills/prd/` (and `.agents/skills/prd/`) via symlinks into the local skills cache. Run `npx skills update` after pushing skill edits.
+This populates `.claude/skills/prd/` (and `.agents/skills/prd/`) via symlinks into the local skills cache.
+
+## Update the skill
+
+After pushing skill edits to the repo:
+
+```bash
+npx skills update
+```
+
+## Remove the skill
+
+```bash
+npx skills remove yjmeqt/prd-tool
+```
 
 ## Use the tool directly
 
