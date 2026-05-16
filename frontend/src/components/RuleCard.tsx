@@ -38,7 +38,10 @@ export function RuleCard({
   const qc = useQueryClient();
   const mut = useMutation({
     mutationFn: (status: string) => api.setRuleStatus(module, feature, rule.id, status),
-    onSuccess: (data) => qc.setQueryData(["feature", module, feature], data),
+    onSuccess: (data) => {
+      qc.setQueryData(["feature", module, feature], data);
+      qc.invalidateQueries({ queryKey: ["index"] });
+    },
     onError: (e: ApiError) => {
       const msg =
         typeof e.detail === "object" && e.detail && "message" in e.detail

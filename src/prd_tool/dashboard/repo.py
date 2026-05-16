@@ -77,6 +77,7 @@ def build_index(prd_dir: Path) -> dict[str, Any]:
                 "rules_done": 0,
                 "rules_total": 0,
                 "bugs_open": 0,
+                "bugs_active": 0,
                 "ui_reviewed": 0,
                 "ui_total": 0,
             }

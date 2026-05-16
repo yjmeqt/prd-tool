@@ -19,6 +19,7 @@ def compute_prd_stats(root: ET.Element) -> dict[str, int]:
     rules_done = 0
     rules_total = 0
     bugs_open = 0
+    bugs_active = 0
     ui_reviewed = 0
     ui_total = 0
 
@@ -33,13 +34,17 @@ def compute_prd_stats(root: ET.Element) -> dict[str, int]:
                 ui_reviewed += 1
 
     for bug in root.findall("bug"):
-        if bug.get("status") == "Open":
+        status = bug.get("status")
+        if status == "Open":
             bugs_open += 1
+        if status in ("Open", "Fix Pending"):
+            bugs_active += 1
 
     return {
         "rules_done": rules_done,
         "rules_total": rules_total,
         "bugs_open": bugs_open,
+        "bugs_active": bugs_active,
         "ui_reviewed": ui_reviewed,
         "ui_total": ui_total,
     }

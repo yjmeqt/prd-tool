@@ -6,6 +6,8 @@ import { IndexFeature } from "@/types";
 import { useDocumentTitle } from "@/useDocumentTitle";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UnfinishedToggle } from "@/components/UnfinishedToggle";
+import { useUnfinishedOnly } from "@/useUnfinishedOnly";
 
 type SortKey = "module" | "name" | "rules" | "bugs" | "ui";
 
@@ -21,13 +23,25 @@ export function HomePage() {
     key: "bugs",
     dir: -1,
   });
+  const [unfinishedOnly] = useUnfinishedOnly();
 
   const toggle = (key: SortKey) =>
     setSort((s) => (s.key === key ? { key, dir: -s.dir as 1 | -1 } : { key, dir: -1 }));
 
   const rows = useMemo<IndexFeature[]>(() => {
     const flat: IndexFeature[] = [];
-    q.data?.modules.forEach((m) => m.features.forEach((f) => flat.push(f)));
+    q.data?.modules.forEach((m) =>
+      m.features.forEach((f) => {
+        if (unfinishedOnly) {
+          const done =
+            f.stats.rules_total > 0 &&
+            f.stats.rules_done === f.stats.rules_total &&
+            f.stats.bugs_active === 0;
+          if (done) return;
+        }
+        flat.push(f);
+      }),
+    );
     flat.sort((a, b) => {
       const sign = sort.dir;
       switch (sort.key) {
@@ -47,7 +61,7 @@ export function HomePage() {
       }
     });
     return flat;
-  }, [q.data, sort]);
+  }, [q.data, sort, unfinishedOnly]);
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -115,11 +129,14 @@ export function HomePage() {
 
       {/* Listing */}
       <section className="rise rise-4">
-        <div className="flex items-baseline justify-between mb-4">
+        <div className="flex items-baseline justify-between mb-4 gap-4">
           <h2 className="eyebrow">The Listing</h2>
-          <span className="eyebrow text-muted-foreground">
-            {rows.length} {rows.length === 1 ? "entry" : "entries"}
-          </span>
+          <div className="flex items-center gap-3">
+            <UnfinishedToggle />
+            <span className="eyebrow text-muted-foreground">
+              {rows.length} {rows.length === 1 ? "entry" : "entries"}
+            </span>
+          </div>
         </div>
 
         <div className="border-y-2 border-foreground">

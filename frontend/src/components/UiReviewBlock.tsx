@@ -36,7 +36,10 @@ export function UiReviewBlock({
   const qc = useQueryClient();
   const mut = useMutation({
     mutationFn: (ruleQid: string) => api.resolveFinding(module, feature, ruleQid),
-    onSuccess: (data) => qc.setQueryData(["feature", module, feature], data),
+    onSuccess: (data) => {
+      qc.setQueryData(["feature", module, feature], data);
+      qc.invalidateQueries({ queryKey: ["index"] });
+    },
     onError: (e) => {
       toast.error("Failed to resolve finding", { description: detailMessage(e) });
       qc.invalidateQueries({ queryKey: ["feature", module, feature] });
