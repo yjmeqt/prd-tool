@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/api";
 import { Rule } from "@/types";
 import { FigmaThumb } from "@/components/FigmaThumb";
+import { RichContent } from "@/components/RichContent";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Check, X, CircleDashed } from "lucide-react";
@@ -25,10 +26,12 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function RuleCard({
   rule,
+  reqId,
   module,
   feature,
 }: {
   rule: Rule;
+  reqId: string;
   module: string;
   feature: string;
 }) {
@@ -52,8 +55,9 @@ export function RuleCard({
 
   return (
     <div
+      id={`${reqId}.${rule.id}`}
       className={cn(
-        "flex items-start gap-4 py-3 border-b hairline last:border-b-0 transition-colors hover:bg-accent/20",
+        "flex items-start gap-4 py-3 border-b hairline last:border-b-0 transition-colors hover:bg-accent/20 scroll-mt-20",
         dimmed && "opacity-60",
       )}
     >
@@ -80,9 +84,16 @@ export function RuleCard({
         {rule.context && (
           <span className="font-display italic text-muted-foreground mr-1">({rule.context})</span>
         )}
-        <span className={cn(dimmed && "text-muted-foreground line-through decoration-rule")}>
-          {rule.text}
-        </span>
+        <RichContent
+          as="span"
+          html={rule.text}
+          module={module}
+          feature={feature}
+          className={cn(
+            "inline align-baseline",
+            dimmed && "text-muted-foreground line-through decoration-rule",
+          )}
+        />
         {rule.figma_nodes.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {rule.figma_nodes.map((fn, i) => (

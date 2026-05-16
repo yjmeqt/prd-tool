@@ -234,3 +234,135 @@
     animation-delay: 0.28s;
   }
 }
+
+/* Rich content inside PRD rich-text fields (overview, description, rule body, etc.).
+   Inherits the surrounding font size; styles intentionally understated to match
+   the engineering-ledger aesthetic. */
+.prd-prose > * + * {
+  margin-top: 0.5em;
+}
+.prd-prose p {
+  margin: 0;
+}
+.prd-prose strong,
+.prd-prose b {
+  font-weight: 600;
+  color: var(--foreground);
+}
+.prd-prose em,
+.prd-prose i {
+  font-style: italic;
+}
+.prd-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--muted);
+  padding: 0 0.3em;
+  border-radius: 2px;
+}
+.prd-prose pre {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--muted);
+  padding: 0.75em 1em;
+  border-left: 2px solid var(--rule);
+  overflow-x: auto;
+  line-height: 1.5;
+}
+.prd-prose pre code {
+  background: transparent;
+  padding: 0;
+}
+.prd-prose ul,
+.prd-prose ol {
+  margin: 0.25em 0;
+  padding-left: 1.5em;
+}
+.prd-prose ul {
+  list-style: disc;
+}
+.prd-prose ol {
+  list-style: decimal;
+}
+.prd-prose li + li {
+  margin-top: 0.2em;
+}
+.prd-prose blockquote {
+  border-left: 2px solid var(--rule);
+  padding-left: 1em;
+  color: var(--muted-foreground);
+  font-style: italic;
+  margin: 0.5em 0;
+}
+.prd-prose a {
+  color: var(--destructive);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.prd-prose a:hover {
+  text-decoration-thickness: 2px;
+}
+.prd-prose a[href^="prd:"] {
+  font-style: italic;
+}
+.prd-prose img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+  margin: 0.5em 0;
+}
+.prd-prose h1,
+.prd-prose h2,
+.prd-prose h3,
+.prd-prose h4 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  line-height: 1.2;
+  margin-top: 1em;
+}
+.prd-prose h1 {
+  font-size: 1.6em;
+}
+.prd-prose h2 {
+  font-size: 1.35em;
+}
+.prd-prose h3 {
+  font-size: 1.15em;
+}
+.prd-prose h4 {
+  font-size: 1em;
+}
+.prd-prose hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 1em 0;
+}
+.prd-prose table {
+  border-collapse: collapse;
+  width: auto;
+  font-size: 0.95em;
+}
+.prd-prose th,
+.prd-prose td {
+  border: 1px solid var(--rule);
+  padding: 0.4em 0.7em;
+  text-align: left;
+}
+.prd-prose th {
+  background: var(--muted);
+  font-weight: 600;
+}
+.prd-prose kbd {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  padding: 0 0.3em;
+  border-radius: 2px;
+  background: var(--card);
+}
+.prd-prose mark {
+  background: color-mix(in oklch, var(--warning) 30%, transparent);
+  padding: 0 0.15em;
+}

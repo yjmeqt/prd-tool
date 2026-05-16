@@ -32,6 +32,12 @@ def _attrs_str(elem: ET.Element) -> str:
     return " ".join(parts)
 
 
+def _xhtml_attrs_str(elem: ET.Element) -> str:
+    """Attributes for inline XHTML. Insertion order, no canonical reordering."""
+    parts = [f'{k}="{_escape_attr(v)}"' for k, v in elem.attrib.items()]
+    return " ".join(parts)
+
+
 def _escape_attr(value: str) -> str:
     """Escape attribute values for XML."""
     return (
@@ -42,6 +48,39 @@ def _escape_attr(value: str) -> str:
 def _escape_text(text: str) -> str:
     """Escape text content for XML."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _serialize_inner_xhtml(elem: ET.Element, exclude_tags: tuple[str, ...] = ()) -> str:
+    """Serialize an element's inner content (text + child elements + tails) as XHTML.
+
+    Excludes children whose tag is in ``exclude_tags`` (their tail is also dropped, so the
+    structural child can be re-emitted separately by the caller).
+    """
+    parts: list[str] = []
+    if elem.text:
+        parts.append(_escape_text(elem.text))
+    for child in elem:
+        if child.tag in exclude_tags:
+            continue
+        parts.append(_serialize_xhtml_element(child))
+        if child.tail:
+            parts.append(_escape_text(child.tail))
+    return "".join(parts)
+
+
+def _serialize_xhtml_element(elem: ET.Element) -> str:
+    """Serialize a single inline XHTML element (used inside rich-text fields)."""
+    attrs = _xhtml_attrs_str(elem)
+    attr_str = f" {attrs}" if attrs else ""
+    if len(elem) == 0 and not (elem.text or ""):
+        return f"<{elem.tag}{attr_str}/>"
+    inner = _serialize_inner_xhtml(elem)
+    return f"<{elem.tag}{attr_str}>{inner}</{elem.tag}>"
+
+
+def _has_xhtml_children(elem: ET.Element, exclude_tags: tuple[str, ...] = ()) -> bool:
+    """True iff elem contains any child element that isn't in exclude_tags."""
+    return any(child.tag not in exclude_tags for child in elem)
 
 
 def _format_prd_element(root: ET.Element, lines: list[str]) -> None:
@@ -67,8 +106,21 @@ def _format_prd_element(root: ET.Element, lines: list[str]) -> None:
 
 
 def _format_text_block(elem: ET.Element, lines: list[str], depth: int) -> None:
-    """Format an element with text content, preserving inner whitespace."""
+    """Format <overview>: rich-text-aware. Inner lines at column 0."""
     indent = INDENT * depth
+    if _has_xhtml_children(elem):
+        inner = _serialize_inner_xhtml(elem).strip()
+        if not inner:
+            lines.append("")
+            lines.append(f"{indent}<{elem.tag}/>")
+            return
+        lines.append("")
+        lines.append(f"{indent}<{elem.tag}>")
+        for line in inner.splitlines():
+            lines.append(line.rstrip())
+        lines.append(f"{indent}</{elem.tag}>")
+        return
+
     text = (elem.text or "").strip()
     if not text:
         lines.append("")
@@ -109,7 +161,22 @@ def _format_requirement(req: ET.Element, lines: list[str]) -> None:
 
 
 def _format_description(elem: ET.Element, lines: list[str]) -> None:
-    """Format a <description> inside a requirement."""
+    """Format a <description> inside a requirement. Rich-text-aware."""
+    if _has_xhtml_children(elem):
+        inner = _serialize_inner_xhtml(elem).strip()
+        if not inner:
+            lines.append(f"{INDENT}<description/>")
+            return
+        lines.append(f"{INDENT}<description>")
+        for line in inner.splitlines():
+            stripped = line.strip()
+            if stripped:
+                lines.append(f"{INDENT}{INDENT}{stripped}")
+            else:
+                lines.append("")
+        lines.append(f"{INDENT}</description>")
+        return
+
     text = (elem.text or "").strip()
     lines.append(f"{INDENT}<description>")
     for line in text.splitlines():
@@ -118,11 +185,24 @@ def _format_description(elem: ET.Element, lines: list[str]) -> None:
 
 
 def _format_rule(rule: ET.Element, lines: list[str]) -> None:
-    """Format a <rule> element, including nested <figma_node> children."""
+    """Format a <rule> element, including nested <figma_node> children and inline XHTML."""
     attrs = _attrs_str(rule)
-    text = (rule.text or "").strip()
     figma_nodes = rule.findall("figma_node")
+    has_xhtml = _has_xhtml_children(rule, exclude_tags=("figma_node",))
 
+    if has_xhtml:
+        inner = _serialize_inner_xhtml(rule, exclude_tags=("figma_node",)).strip()
+        if not figma_nodes:
+            lines.append(f"{INDENT}<rule {attrs}>{inner}</rule>")
+        else:
+            lines.append(f"{INDENT}<rule {attrs}>{inner}")
+            for fn in figma_nodes:
+                fn_attrs = _attrs_str(fn)
+                lines.append(f"{INDENT}{INDENT}<figma_node {fn_attrs} />")
+            lines.append(f"{INDENT}</rule>")
+        return
+
+    text = (rule.text or "").strip()
     if not figma_nodes:
         lines.append(f"{INDENT}<rule {attrs}>{_escape_text(text)}</rule>")
     else:
@@ -144,8 +224,12 @@ def _format_ui_review(ui_review: ET.Element, lines: list[str]) -> None:
         lines.append(f"{INDENT}<ui_review {attrs}>")
         for finding in findings:
             f_attrs = _attrs_str(finding)
-            text = (finding.text or "").strip()
-            lines.append(f"{INDENT}{INDENT}<finding {f_attrs}>{_escape_text(text)}</finding>")
+            if _has_xhtml_children(finding):
+                inner = _serialize_inner_xhtml(finding).strip()
+                lines.append(f"{INDENT}{INDENT}<finding {f_attrs}>{inner}</finding>")
+            else:
+                text = (finding.text or "").strip()
+                lines.append(f"{INDENT}{INDENT}<finding {f_attrs}>{_escape_text(text)}</finding>")
         lines.append(f"{INDENT}</ui_review>")
 
 
@@ -157,7 +241,22 @@ def _format_bug(bug: ET.Element, lines: list[str]) -> None:
 
     for child_tag in ("current", "expected", "steps"):
         child = bug.find(child_tag)
-        if child is not None:
+        if child is None:
+            continue
+        if _has_xhtml_children(child):
+            inner = _serialize_inner_xhtml(child).strip()
+            if not inner:
+                lines.append(f"{INDENT}<{child_tag}/>")
+                continue
+            lines.append(f"{INDENT}<{child_tag}>")
+            for line in inner.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    lines.append(f"{INDENT}{INDENT}{stripped}")
+                else:
+                    lines.append("")
+            lines.append(f"{INDENT}</{child_tag}>")
+        else:
             text = (child.text or "").strip()
             lines.append(f"{INDENT}<{child_tag}>")
             for line in text.splitlines():
