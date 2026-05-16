@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Eye, Check } from "lucide-react";
 import { toast } from "sonner";
 import { RichContent } from "@/components/RichContent";
+import { patchIndexStatsFromFeature } from "@/lib/cacheSync";
 
 function detailMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -38,6 +39,7 @@ export function UiReviewBlock({
     mutationFn: (ruleQid: string) => api.resolveFinding(module, feature, ruleQid),
     onSuccess: (data) => {
       qc.setQueryData(["feature", module, feature], data);
+      patchIndexStatsFromFeature(qc, data);
       qc.invalidateQueries({ queryKey: ["index"] });
     },
     onError: (e) => {

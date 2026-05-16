@@ -19,6 +19,7 @@ import { ArrowRight, Bug as BugIcon, ChevronDown, ChevronRight } from "lucide-re
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { RichContent } from "@/components/RichContent";
+import { patchIndexStatsFromFeature } from "@/lib/cacheSync";
 
 const BUG_CYCLE: Record<string, string> = {
   Open: "Fix Pending",
@@ -44,6 +45,7 @@ export function BugCard({ bug, module, feature }: { bug: Bug; module: string; fe
     mutationFn: (status: string) => api.setBugStatus(module, feature, bug.id, status),
     onSuccess: (data) => {
       qc.setQueryData(["feature", module, feature], data);
+      patchIndexStatsFromFeature(qc, data);
       qc.invalidateQueries({ queryKey: ["index"] });
     },
     onError: (e: ApiError) => {
