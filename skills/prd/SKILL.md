@@ -23,9 +23,10 @@ If no argument is provided, infer the module from conversation context.
 
 ### Step 1: Resolve the PRD file
 
-1. If an argument is given, map it to `prd/<module>/<feature>.xml`
-2. If no argument, check conversation context for module references, then scan `prd/README.md` for matching entries
-3. If ambiguous, list available modules from `prd/README.md` and ask the user to pick
+1. Run `prd root` to learn the PRD directory for this repo. Parse the tab-separated output: `repo_root\tprd_dir\tsource`. If `prd root` exits non-zero, fall back to `prd/` at cwd and surface a one-line warning to the user.
+2. If an argument is given, map it to `<prd_dir>/<module>/<feature>.xml`.
+3. If no argument, check conversation context for module references, then run `prd ls` and scan `prd/README.md` for matching entries.
+4. If ambiguous, list available modules (from `prd ls` and `prd/README.md`) and ask the user to pick.
 
 ### Step 2: Read and validate the PRD
 
