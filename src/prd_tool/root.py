@@ -58,3 +58,39 @@ def _read_prd_dir(toml_path: Path) -> str:
         if isinstance(value, str) and value:
             return value
     return "prd"
+
+
+def resolve_ref(ref: str, *, start: Path | None = None) -> Path:
+    """Resolve a CLI ref to a concrete file path.
+
+    Order:
+      1. If `ref` exists on disk as-is, return it.
+      2. Else, find the PRD root from `start` (cwd by default) and try
+         `<prd_dir>/<ref>.xml`, then `<prd_dir>/<ref>` (in case the user
+         typed `.xml` themselves).
+      3. Else, raise FileNotFoundError with an actionable message.
+    """
+    literal = Path(ref)
+    if literal.exists():
+        return literal
+
+    root = find_root(start)
+    if root is not None:
+        candidates = [
+            root.prd_dir / f"{ref}.xml",
+            root.prd_dir / ref,
+        ]
+        for c in candidates:
+            if c.is_file():
+                return c
+
+    searched_from = (start or Path.cwd()).resolve()
+    raise FileNotFoundError(
+        "prd: not a PRD repo or unknown ref\n"
+        f"  searched upward from: {searched_from}\n"
+        "  looking for:          .prd-tool.toml  (preferred)\n"
+        "                        prd/index.xml   (convention)\n"
+        f"  ref tried:            {ref!r}\n"
+        "  fix: cd into a PRD repo, create one of the markers above, "
+        "or pass an existing path"
+    )

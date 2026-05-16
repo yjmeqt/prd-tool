@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest  # noqa: F401  # used in later tasks
+import pytest
 
-from prd_tool.root import Root, find_root
+from prd_tool.root import Root, find_root, resolve_ref
 
 
 def _touch(p: Path) -> None:
@@ -79,3 +79,45 @@ def test_find_root_malformed_toml_uses_default_dir(tmp_path: Path) -> None:
 
     assert root is not None
     assert root.prd_dir == (tmp_path / "prd").resolve()
+
+
+def test_resolve_ref_passthrough_existing_path(tmp_path: Path) -> None:
+    f = tmp_path / "literal.xml"
+    f.write_text("<prd name='x'/>", encoding="utf-8")
+
+    resolved = resolve_ref(str(f), start=tmp_path)
+
+    assert resolved == f
+
+
+def test_resolve_ref_module_feature(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    target = tmp_path / "prd" / "comments" / "likes-saves.xml"
+    _touch(target)
+
+    resolved = resolve_ref("comments/likes-saves", start=tmp_path)
+
+    assert resolved == target
+
+
+def test_resolve_ref_tolerates_xml_suffix(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    target = tmp_path / "prd" / "comments" / "likes-saves.xml"
+    _touch(target)
+
+    resolved = resolve_ref("comments/likes-saves.xml", start=tmp_path)
+
+    assert resolved == target
+
+
+def test_resolve_ref_no_root_raises(tmp_path: Path) -> None:
+    sub = tmp_path / "nowhere"
+    sub.mkdir()
+
+    with pytest.raises(FileNotFoundError) as exc:
+        resolve_ref("comments/likes-saves", start=sub)
+
+    msg = str(exc.value)
+    assert ".prd-tool.toml" in msg
+    assert "prd/index.xml" in msg
+    assert str(sub) in msg
