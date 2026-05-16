@@ -35,10 +35,7 @@ def _attrs_str(elem: ET.Element) -> str:
 def _escape_attr(value: str) -> str:
     """Escape attribute values for XML."""
     return (
-        value.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+        value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
     )
 
 
@@ -148,9 +145,7 @@ def _format_ui_review(ui_review: ET.Element, lines: list[str]) -> None:
         for finding in findings:
             f_attrs = _attrs_str(finding)
             text = (finding.text or "").strip()
-            lines.append(
-                f"{INDENT}{INDENT}<finding {f_attrs}>{_escape_text(text)}</finding>"
-            )
+            lines.append(f"{INDENT}{INDENT}<finding {f_attrs}>{_escape_text(text)}</finding>")
         lines.append(f"{INDENT}</ui_review>")
 
 
@@ -182,9 +177,7 @@ def _format_generic(elem: ET.Element, lines: list[str], depth: int) -> None:
     if len(elem) == 0 and not text:
         lines.append(f"{indent}<{elem.tag}{attr_str} />")
     elif len(elem) == 0:
-        lines.append(
-            f"{indent}<{elem.tag}{attr_str}>{_escape_text(text)}</{elem.tag}>"
-        )
+        lines.append(f"{indent}<{elem.tag}{attr_str}>{_escape_text(text)}</{elem.tag}>")
     else:
         lines.append(f"{indent}<{elem.tag}{attr_str}>")
         if text:

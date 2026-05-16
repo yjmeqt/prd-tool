@@ -68,7 +68,7 @@ def print_stats(path: Path) -> int:
                     continue
                 try:
                     sub_root = ET.parse(target).getroot()
-                except ET.ParseError as e:
+                except (ET.ParseError, OSError) as e:
                     print(f"  {entry_name}: (parse error: {e})")
                     exit_code = 1
                     continue

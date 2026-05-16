@@ -1,6 +1,6 @@
 # prd-tool
 
-The `prd` skill plus its companion `prd-tool.py` validator/formatter for product requirement documents authored as XML.
+The `prd` skill plus its companion `prd` CLI (validate, format, stats) for product requirement documents authored as XML.
 
 PRDs are stored per-project as `prd/<module>/<feature>.xml` and describe **what** a feature does (requirements, rules, bugs, UI-review findings, Figma references) — separate from per-platform implementation specs that describe **how** it is built. The skill loads a PRD, walks each `<implementation platform="…" spec="…"/>` entry to read the right spec, fetches referenced Figma nodes, and presents a structured context summary before coding starts.
 

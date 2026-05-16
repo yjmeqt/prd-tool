@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from prd_tool.validate import validate
 
 FIXTURES = Path(__file__).parent / "fixtures"

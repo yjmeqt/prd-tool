@@ -15,7 +15,7 @@ dependencies = []
 [project.scripts]
 prd = "prd_tool.cli:main"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["pytest", "ruff", "mypy"]
 
 [tool.ruff]
