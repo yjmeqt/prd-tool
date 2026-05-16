@@ -100,3 +100,46 @@ def test_prd_ls_filters_by_module(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip().splitlines() == ["comments/likes-saves"]
+
+
+def test_dashboard_refuses_without_tty(tmp_path: Path) -> None:
+    """Subprocess stdin is a pipe (not a TTY); the dashboard must refuse."""
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    (tmp_path / "prd").mkdir()
+
+    result = _run(["dashboard", "--no-open", "--port", "8766"], cwd=tmp_path)
+
+    assert result.returncode == 1
+    assert "interactive terminal" in result.stderr
+    assert "TTY" in result.stderr
+
+
+def test_dashboard_no_tty_env_override_attempts_boot(tmp_path: Path) -> None:
+    """With the env override set, the TTY guard must let the run proceed past
+    the check. We catch it at the port-bind step by giving it a port that's
+    already in use, which should fail with the friendly port message rather
+    than the TTY message."""
+    import socket
+
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    (tmp_path / "prd").mkdir()
+
+    holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        holder.bind(("127.0.0.1", 0))
+        port = holder.getsockname()[1]
+        env = {**__import__("os").environ, "PRD_DASHBOARD_ALLOW_NO_TTY": "1"}
+        result = subprocess.run(
+            [sys.executable, "-m", "prd_tool", "dashboard", "--no-open", "--port", str(port)],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+    finally:
+        holder.close()
+
+    assert result.returncode == 1
+    assert "interactive terminal" not in result.stderr
+    assert "cannot bind" in result.stderr

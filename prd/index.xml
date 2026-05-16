@@ -2,4 +2,7 @@
   <module name="discovery">
     <entry file="discovery/root-and-refs.xml" name="Root Discovery and Short References" />
   </module>
+  <module name="dashboard">
+    <entry file="dashboard/viewer.xml" name="PRD Dashboard Viewer" />
+  </module>
 </prd_index>

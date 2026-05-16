@@ -1,0 +1,128 @@
+<prd name="PRD Dashboard Viewer">
+
+<overview>
+A local web dashboard for browsing and lightly editing PRDs in a repository. Launched from the CLI, it opens in the user's default browser and exposes a sidebar of modules and features alongside a main area that shows either a status rollup across all PRDs or a deep view of one feature. The dashboard reads the PRD root the same way the rest of the tool does and reflects changes to PRD files on disk without a manual refresh.
+</overview>
+<implementation platform="Dashboard" spec="docs/specs/dashboard/viewer.md" />
+
+<requirement id="R1" name="Launch and lifecycle">
+  <description>
+    The dashboard is started from the CLI inside any directory under a PRD root and stays running until the user stops it.
+  </description>
+  <rule id="tty_required" status="✅">`prd dashboard` only runs when launched from an interactive terminal; when stdin is not a TTY (backgrounded, piped, CI, agent harness, `nohup`) it exits non-zero with an error explaining that the server requires an attached terminal so the user can stop it with Ctrl+C, preventing orphaned servers.</rule>
+  <rule id="launch_command" status="✅">`prd dashboard` starts a local web server bound to loopback and opens the dashboard in the user's default browser.</rule>
+  <rule id="port_override" status="✅">`prd dashboard --port &lt;n&gt;` binds the server to the given port; otherwise a default port is used.</rule>
+  <rule id="no_root_error" status="✅">When no PRD root can be found, `prd dashboard` exits non-zero with the same error shape as other root-aware commands, naming the markers it searched for.</rule>
+  <rule id="shutdown" status="✅">Pressing Ctrl+C in the terminal stops the server and exits cleanly.</rule>
+</requirement>
+
+<requirement id="R2" name="Navigation sidebar">
+  <description>
+    A persistent sidebar lists every module and feature found under the discovered PRD directory, mirroring the layout shown by `prd ls`.
+  </description>
+  <rule id="module_tree" status="⚠️">The sidebar groups features by module; each module is collapsible and shows its feature count.</rule>
+  <rule id="feature_entry" status="✅">Each feature in the sidebar shows its display name and links to the feature detail view.</rule>
+  <rule id="active_highlight" status="✅">The currently viewed feature is visually highlighted in the sidebar.</rule>
+  <rule id="empty_state" status="✅">When the PRD directory contains no features, the sidebar shows a short message explaining how to add one.</rule>
+</requirement>
+
+<requirement id="R3" name="Status rollup home">
+  <description>
+    The landing view of the dashboard presents a single table summarizing the health of every PRD in the repository.
+  </description>
+  <rule id="rollup_table" status="✅">The home view shows one row per feature with: module, feature name, rules done / total, open bug count, and UI-review status.</rule>
+  <rule id="rollup_counts_match_stats" status="✅">The counts shown in the table match what `prd stats prd/index.xml` reports for the same files.</rule>
+  <rule id="rollup_sort" status="✅">Columns can be sorted; the default sort surfaces features with open bugs or unfinished rules first.</rule>
+  <rule id="rollup_click_through" status="✅">Clicking a row opens that feature's detail view.</rule>
+</requirement>
+
+<requirement id="R4" name="Feature detail view">
+  <description>
+    Selecting a feature shows everything the PRD says about it: overview, implementation entries, requirements with their rules, bugs, and UI-review findings.
+  </description>
+  <rule id="overview_block" status="✅">The detail view shows the feature name, status rollup, and the overview text at the top.</rule>
+  <rule id="implementation_list" status="✅">Each `&lt;implementation&gt;` entry is shown with its platform and spec path; a missing or TBD spec is visually marked as such.</rule>
+  <rule id="requirements_section" status="✅">Each requirement is rendered as a card with its title, description, and a list of rules; each rule shows its status icon and any `context` attribute.</rule>
+  <rule id="ui_review_section" status="✅">When a requirement has a `&lt;ui_review&gt;` element, its status, date, and findings are shown alongside the rules they reference.</rule>
+  <rule id="bugs_section" status="✅">Open and Fix-Pending bugs are shown above Fixed bugs; each bug shows its id, status, date, the rule it references, and its current/expected/steps text.</rule>
+</requirement>
+
+<requirement id="R5" name="Figma references">
+  <description>
+    Every `&lt;figma_node&gt;` referenced by a rule is surfaced as a link that opens the node in Figma. The dashboard does not fetch images from Figma — there is no API token to configure and no thumbnails to render.
+  </description>
+  <rule id="figma_link" status="✅">A `&lt;figma_node&gt;` attached to a rule renders as a small chip showing the node's `name` and opens the node in Figma in a new tab when clicked.</rule>
+  <rule id="figma_node_id" status="✅">The link is built from the node's `file` and `node` attributes, converting the `-` separator in the node id to `:` so Figma resolves it.</rule>
+  <rule id="figma_no_remote_calls" status="✅">The dashboard never contacts Figma's API or downloads images; opening the link is the only network call, and it happens in the user's browser, not the server.</rule>
+</requirement>
+
+<requirement id="R6" name="Lightweight edits">
+  <description>
+    The dashboard can toggle a small set of statuses on the underlying XML so reviewers can act on what they see without switching to an editor. Larger structural edits remain the responsibility of the XML files and the existing CLI commands.
+  </description>
+  <rule id="rule_status_toggle" status="✅">A rule's status can be cycled between ❌, ⚠️, and ✅ from the rule card; the change is persisted to the XML file on disk.</rule>
+  <rule id="bug_status_cycle" status="✅">A bug's status can be advanced through the Open → Fix Pending → Fixed lifecycle from the bug card; transitions follow the lifecycle described in the PRD skill.</rule>
+  <rule id="finding_resolve" status="✅">A UI-review finding can be marked resolved; when the last finding of a `&lt;ui_review&gt;` is resolved its overall status becomes ✅.</rule>
+  <rule id="edits_validated" status="✅">Every persisted edit leaves the file passing `prd validate`; if validation would fail the edit is rejected and the user is shown why.</rule>
+  <rule id="edits_formatted" status="✅">Persisted edits leave the file formatted as `prd format` would format it, so dashboard edits do not produce noisy diffs.</rule>
+</requirement>
+
+<requirement id="R7" name="Live reflection of disk changes">
+  <description>
+    The dashboard treats the XML files on disk as the source of truth; edits made in an editor outside the dashboard show up without a manual refresh.
+  </description>
+  <rule id="watch_prd_dir" status="✅">When a PRD file under the discovered PRD directory is created, modified, or deleted, any view that depends on it updates without the user reloading the page.</rule>
+  <rule id="index_refresh" status="⚠️">Adding or removing a feature file updates the sidebar and the status rollup live.</rule>
+  <rule id="invalid_xml_banner" status="⚠️" context="A watched file becomes invalid XML">The affected view shows a non-blocking banner explaining that the file failed to parse, while other features remain browsable.</rule>
+</requirement>
+
+<requirement id="R8" name="Packaging">
+  <description>
+    Installing `prd-tool` is enough to use the dashboard; no extra toolchain is required for end users.
+  </description>
+  <rule id="bundled_assets" status="✅">A user who installs `prd-tool` from a published wheel can run `prd dashboard` with no additional install step.</rule>
+  <rule id="dev_mode_flag" status="❌">Contributors editing the frontend can run `prd dashboard --dev` to source assets from a local dev server instead of the bundled build.</rule>
+  <rule id="ci_builds_frontend" status="❌">The published wheel includes a pre-built copy of the frontend assets, produced by CI before publish.</rule>
+</requirement>
+
+<requirement id="R9" name="Theme follows the operating system">
+  <description>
+    The dashboard always reflects the user's operating-system color scheme — light when the OS is light, dark when the OS is dark. There is no in-app toggle and no remembered preference; the dashboard is a passive mirror of the system setting.
+  </description>
+  <rule id="theme_follows_system" status="✅">On load, the dashboard renders in light mode when the operating system reports a light color scheme and in dark mode when the OS reports dark.</rule>
+  <rule id="theme_live_switch" status="✅">When the operating-system color scheme changes while the dashboard is open, the dashboard switches without requiring a page reload.</rule>
+  <rule id="theme_no_user_control" status="✅">The dashboard does not expose a theme toggle or remember a per-user override; the only source of truth is the OS preference.</rule>
+  <rule id="theme_readable_in_dark" status="✅">Every screen — status rollup, feature detail, bug cards, UI review callouts, Figma chips, banners, toasts — remains legible with sufficient contrast in dark mode.</rule>
+  <rule id="theme_status_colors_distinct" status="✅">The three rule-status glyphs (done / partial / missing) and the bug-status badges (Open / Fix Pending / Fixed) remain visually distinct in both themes.</rule>
+</requirement>
+
+<bug id="sidebar_stays_light_in_dark_mode" status="Fixed" date="2026-05-16" rule="R9.theme_readable_in_dark">
+  <current>
+    When the operating system switches to dark mode (or starts in dark mode), the sidebar — including its background, the per-module headers, and the inactive feature links — remains light. The rest of the dashboard (main content area, cards, banners, badges) renders dark correctly, so the sidebar looks visibly out of place against the dark main panel.
+  </current>
+  <expected>
+    The sidebar follows the system theme like every other part of the dashboard. In dark mode the sidebar has a dark background, light foreground text, and dark-appropriate borders and hover states.
+  </expected>
+  <steps>
+    1. Set the operating system to Dark appearance.
+    2. Open the dashboard.
+    3. Observe: the main content area is dark, but the entire left sidebar (logo block, module headers, feature links) is still light.
+  </steps>
+</bug>
+
+<bug id="orphan_server_outlives_terminal" status="Fixed" date="2026-05-16" rule="R1.tty_required">
+  <current>
+    The TTY gate only checks at launch time. If the user starts `prd dashboard` from a real terminal and later closes that terminal window (or the shell exits) without pressing Ctrl+C, the python server is reparented and keeps running in the background, holding the port. The next `prd dashboard` invocation fails with "cannot bind 127.0.0.1:8765 (Address already in use)" and the only recovery is to find and `kill` the orphan PID by hand.
+  </current>
+  <expected>
+    A `prd dashboard` process should not outlive the terminal it was launched from. When the controlling terminal goes away (SIGHUP, parent shell exits, terminal window closed), the server shuts down cleanly and releases the port — so the rule's stated promise of "preventing orphaned servers" actually holds, not just for headless launches but for the close-the-window case too.
+  </expected>
+  <steps>
+    1. Run `prd dashboard` from a terminal window.
+    2. Close the terminal window (or quit the shell) without pressing Ctrl+C first.
+    3. Open a new terminal and run `prd dashboard` again.
+    4. Observe: it fails with "cannot bind 127.0.0.1:8765 (Address already in use)"; `lsof -ti:8765` shows the previous run's python process still alive.
+  </steps>
+</bug>
+
+</prd>

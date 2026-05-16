@@ -14,3 +14,22 @@ uv run mypy src/
 
 echo "[pre-push] pytest"
 uv run pytest -q
+
+# Frontend checks. Skip cleanly if the frontend isn't installed yet so the
+# Python-only contributor flow keeps working.
+if [ -d frontend/node_modules ]; then
+  echo "[pre-push] frontend typecheck"
+  (cd frontend && pnpm --silent run typecheck)
+
+  echo "[pre-push] frontend lint"
+  (cd frontend && pnpm --silent run lint)
+
+  echo "[pre-push] frontend format:check"
+  (cd frontend && pnpm --silent run format:check)
+
+  echo "[pre-push] frontend test"
+  (cd frontend && pnpm --silent run test)
+else
+  echo "[pre-push] frontend/node_modules not found — skipping frontend checks"
+  echo "          (run \`cd frontend && pnpm install\` to enable them)"
+fi
