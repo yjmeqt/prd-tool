@@ -18,6 +18,7 @@ import {
 import { ArrowRight, Bug as BugIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { RichContent } from "@/components/RichContent";
 
 const BUG_CYCLE: Record<string, string> = {
   Open: "Fix Pending",
@@ -81,8 +82,9 @@ export function BugCard({ bug, module, feature }: { bug: Bug; module: string; fe
   return (
     <>
       <Card
+        id={`bug.${bug.id}`}
         className={cn(
-          "rounded-none border-l-4 border-y hairline border-r hairline transition-opacity shadow-none bg-card",
+          "rounded-none border-l-4 border-y hairline border-r hairline transition-opacity shadow-none bg-card scroll-mt-20",
           accent,
           fixed && "opacity-55",
         )}
@@ -104,15 +106,31 @@ export function BugCard({ bug, module, feature }: { bug: Bug; module: string; fe
             </div>
             <div className="grid grid-cols-[5.5rem_1fr] gap-x-4 gap-y-2 text-[15px] leading-relaxed">
               <span className="eyebrow text-muted-foreground pt-1.5">Current</span>
-              <span className="border-l hairline pl-3">{bug.current}</span>
+              <RichContent
+                as="span"
+                html={bug.current}
+                module={module}
+                feature={feature}
+                className="border-l hairline pl-3"
+              />
               <span className="eyebrow text-muted-foreground pt-1.5">Expected</span>
-              <span className="border-l hairline pl-3 font-display italic">{bug.expected}</span>
+              <RichContent
+                as="span"
+                html={bug.expected}
+                module={module}
+                feature={feature}
+                className="border-l hairline pl-3 font-display italic"
+              />
               {bug.steps && (
                 <>
                   <span className="eyebrow text-muted-foreground pt-1.5">Steps</span>
-                  <span className="border-l hairline pl-3 whitespace-pre-wrap font-mono text-[13px]">
-                    {bug.steps}
-                  </span>
+                  <RichContent
+                    as="span"
+                    html={bug.steps}
+                    module={module}
+                    feature={feature}
+                    className="border-l hairline pl-3 whitespace-pre-wrap font-mono text-[13px]"
+                  />
                 </>
               )}
             </div>

@@ -4,6 +4,7 @@ import { api } from "@/api";
 import { RuleCard } from "@/components/RuleCard";
 import { BugCard } from "@/components/BugCard";
 import { UiReviewBlock } from "@/components/UiReviewBlock";
+import { RichContent } from "@/components/RichContent";
 import { useDocumentTitle } from "@/useDocumentTitle";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -61,9 +62,12 @@ export function FeaturePage() {
         </div>
         <h1 className="font-display text-6xl leading-[0.95] tracking-tight mt-3">{data.name}</h1>
         {data.overview && (
-          <p className="mt-6 font-display text-xl leading-relaxed text-foreground/80 max-w-2xl italic">
-            {data.overview}
-          </p>
+          <RichContent
+            html={data.overview}
+            module={data.module}
+            feature={data.feature}
+            className="mt-6 font-display text-xl leading-relaxed text-foreground/80 max-w-2xl italic"
+          />
         )}
 
         {/* Ledger strip */}
@@ -120,7 +124,7 @@ export function FeaturePage() {
         <SectionHead eyebrow="The Articles" title="Requirements" count={data.requirements.length} />
         <div className="space-y-12">
           {data.requirements.map((req, idx) => (
-            <article key={req.id} className="relative pl-14">
+            <article key={req.id} id={req.id} className="relative pl-14 scroll-mt-20">
               {/* Ledger gutter */}
               <div className="absolute left-0 top-0 bottom-0 w-10 flex flex-col items-start">
                 <div className="font-display text-4xl leading-none text-destructive italic">
@@ -136,15 +140,24 @@ export function FeaturePage() {
               <header className="mb-4">
                 <h3 className="font-display text-3xl tracking-tight leading-tight">{req.name}</h3>
                 {req.description && (
-                  <p className="mt-2 text-muted-foreground leading-relaxed max-w-2xl">
-                    {req.description}
-                  </p>
+                  <RichContent
+                    html={req.description}
+                    module={data.module}
+                    feature={data.feature}
+                    className="mt-2 text-muted-foreground leading-relaxed max-w-2xl"
+                  />
                 )}
               </header>
 
               <div className="border-t hairline">
                 {req.rules.map((rule) => (
-                  <RuleCard key={rule.id} rule={rule} module={data.module} feature={data.feature} />
+                  <RuleCard
+                    key={rule.id}
+                    rule={rule}
+                    reqId={req.id}
+                    module={data.module}
+                    feature={data.feature}
+                  />
                 ))}
               </div>
               {req.ui_reviews.map((ur, i) => (

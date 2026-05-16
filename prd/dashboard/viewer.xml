@@ -11,14 +11,14 @@ A local web dashboard for browsing and lightly editing PRDs in a repository. Lau
   </description>
   <rule id="tty_required" status="✅">`prd dashboard` only runs when launched from an interactive terminal; when stdin is not a TTY (backgrounded, piped, CI, agent harness, `nohup`) it exits non-zero with an error explaining that the server requires an attached terminal so the user can stop it with Ctrl+C, preventing orphaned servers.</rule>
   <rule id="launch_command" status="✅">`prd dashboard` starts a local web server bound to loopback and opens the dashboard in the user's default browser.</rule>
-  <rule id="port_override" status="✅">`prd dashboard --port &lt;n&gt;` binds the server to the given port; otherwise a default port is used.</rule>
+  <rule id="port_override" status="✅"><code>prd dashboard --port &lt;n&gt;</code> binds the server to the given port; otherwise a default port is used.</rule>
   <rule id="no_root_error" status="✅">When no PRD root can be found, `prd dashboard` exits non-zero with the same error shape as other root-aware commands, naming the markers it searched for.</rule>
   <rule id="shutdown" status="✅">Pressing Ctrl+C in the terminal stops the server and exits cleanly.</rule>
 </requirement>
 
 <requirement id="R2" name="Navigation sidebar">
   <description>
-    A persistent sidebar lists every module and feature found under the discovered PRD directory, mirroring the layout shown by `prd ls`.
+    A persistent sidebar lists every module and feature found under the discovered PRD directory, mirroring the layout shown by <code>prd ls</code>. PRD discovery follows the rules described in <a href="prd:discovery/root-and-refs">discovery/root-and-refs</a>.
   </description>
   <rule id="module_tree" status="⚠️">The sidebar groups features by module; each module is collapsible and shows its feature count.</rule>
   <rule id="feature_entry" status="✅">Each feature in the sidebar shows its display name and links to the feature detail view.</rule>
@@ -30,7 +30,7 @@ A local web dashboard for browsing and lightly editing PRDs in a repository. Lau
   <description>
     The landing view of the dashboard presents a single table summarizing the health of every PRD in the repository.
   </description>
-  <rule id="rollup_table" status="✅">The home view shows one row per feature with: module, feature name, rules done / total, open bug count, and UI-review status.</rule>
+  <rule id="rollup_table" status="✅">The home view shows one row per feature with: module, feature name, rules done / total, open bug count, and UI-review status. <img src="screenshots/rollup-strip.png" alt="Rollup strip placeholder"/></rule>
   <rule id="rollup_counts_match_stats" status="✅">The counts shown in the table match what `prd stats prd/index.xml` reports for the same files.</rule>
   <rule id="rollup_sort" status="✅">Columns can be sorted; the default sort surfaces features with open bugs or unfinished rules first.</rule>
   <rule id="rollup_click_through" status="✅">Clicking a row opens that feature's detail view.</rule>
@@ -45,6 +45,7 @@ A local web dashboard for browsing and lightly editing PRDs in a repository. Lau
   <rule id="requirements_section" status="✅">Each requirement is rendered as a card with its title, description, and a list of rules; each rule shows its status icon and any `context` attribute.</rule>
   <rule id="ui_review_section" status="✅">When a requirement has a `&lt;ui_review&gt;` element, its status, date, and findings are shown alongside the rules they reference.</rule>
   <rule id="bugs_section" status="✅">Open and Fix-Pending bugs are shown above Fixed bugs; each bug shows its id, status, date, the rule it references, and its current/expected/steps text.</rule>
+  <rule id="fixed_bugs_folded" status="❌">Fixed bugs are collapsed to a one-line summary (id, date, rule reference) by default; the user can expand any Fixed bug to see its current/expected/steps text. Open and Fix-Pending bugs remain expanded by default so active work stays in view.</rule>
 </requirement>
 
 <requirement id="R5" name="Figma references">
@@ -62,6 +63,7 @@ A local web dashboard for browsing and lightly editing PRDs in a repository. Lau
   </description>
   <rule id="rule_status_toggle" status="✅">A rule's status can be cycled between ❌, ⚠️, and ✅ from the rule card; the change is persisted to the XML file on disk.</rule>
   <rule id="bug_status_cycle" status="✅">A bug's status can be advanced through the Open → Fix Pending → Fixed lifecycle from the bug card; transitions follow the lifecycle described in the PRD skill.</rule>
+  <rule id="bug_status_revert" status="❌">A bug whose status is Fix Pending or Fixed can be reverted directly back to Open from the bug card, so a regression discovered after marking the bug fixed does not require hand-editing the XML. The revert action is distinct from the forward cycle and is clearly labelled (e.g. "Reopen").</rule>
   <rule id="finding_resolve" status="✅">A UI-review finding can be marked resolved; when the last finding of a `&lt;ui_review&gt;` is resolved its overall status becomes ✅.</rule>
   <rule id="edits_validated" status="✅">Every persisted edit leaves the file passing `prd validate`; if validation would fail the edit is rejected and the user is shown why.</rule>
   <rule id="edits_formatted" status="✅">Persisted edits leave the file formatted as `prd format` would format it, so dashboard edits do not produce noisy diffs.</rule>
@@ -94,6 +96,17 @@ A local web dashboard for browsing and lightly editing PRDs in a repository. Lau
   <rule id="theme_no_user_control" status="✅">The dashboard does not expose a theme toggle or remember a per-user override; the only source of truth is the OS preference.</rule>
   <rule id="theme_readable_in_dark" status="✅">Every screen — status rollup, feature detail, bug cards, UI review callouts, Figma chips, banners, toasts — remains legible with sufficient contrast in dark mode.</rule>
   <rule id="theme_status_colors_distinct" status="✅">The three rule-status glyphs (done / partial / missing) and the bug-status badges (Open / Fix Pending / Fixed) remain visually distinct in both themes.</rule>
+</requirement>
+
+<requirement id="R10" name="Show only unfinished">
+  <description>
+    A quick toggle filters the current view down to items that still need attention — rules whose status is not ✅ and bugs whose status is not Fixed — so a reviewer can scan what is left without scrolling past completed work.
+  </description>
+  <rule id="toggle_control" status="❌">The feature detail view exposes a single, persistent "Show only unfinished" toggle near the top of the view; its on/off state is obvious at a glance.</rule>
+  <rule id="filters_rules" status="❌" context="toggle on">Every rule whose status is ✅ is hidden from each requirement card; rules with status ❌ or ⚠️ remain visible. A requirement card whose rules are all ✅ collapses to a one-line summary instead of disappearing, so the requirement is still discoverable.</rule>
+  <rule id="filters_bugs" status="❌" context="toggle on">Bugs whose status is Fixed are hidden from the bugs section; Open and Fix-Pending bugs remain visible.</rule>
+  <rule id="toggle_persists" status="❌">The toggle state persists across navigation within the dashboard session, so switching between features does not reset the filter.</rule>
+  <rule id="rollup_toggle" status="❌">The status rollup home view exposes the same toggle; when on, rows whose rules are all ✅ and have zero open or fix-pending bugs are hidden from the table.</rule>
 </requirement>
 
 <bug id="sidebar_stays_light_in_dark_mode" status="Fixed" date="2026-05-16" rule="R9.theme_readable_in_dark">

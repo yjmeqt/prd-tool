@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Eye, Check } from "lucide-react";
 import { toast } from "sonner";
+import { RichContent } from "@/components/RichContent";
 
 function detailMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -66,7 +67,13 @@ export function UiReviewBlock({
               <code className="text-xs text-muted-foreground font-mono shrink-0 mt-0.5">
                 {f.rule}
               </code>
-              <span className="flex-1">{f.text}</span>
+              <RichContent
+                as="span"
+                html={f.text}
+                module={module}
+                feature={feature}
+                className="flex-1"
+              />
               <Button
                 variant="ghost"
                 size="sm"
