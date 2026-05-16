@@ -46,6 +46,8 @@ def main() -> None:
         help="Path or <module>/<feature> ref; defaults to <prd_dir>/index.xml",
     )
 
+    sub.add_parser("root", help="Print the resolved PRD root (debugging)")
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -97,3 +99,20 @@ def main() -> None:
         else:
             path = _resolve_or_exit(args.ref)
         sys.exit(print_stats(path))
+
+    elif args.command == "root":
+        from prd_tool.root import find_root
+
+        root = find_root()
+        if root is None:
+            cwd = Path.cwd().resolve()
+            print(
+                "prd: not a PRD repo\n"
+                f"  searched upward from: {cwd}\n"
+                "  looking for:          .prd-tool.toml  (preferred)\n"
+                "                        prd/index.xml   (convention)",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        print(f"{root.repo_root}\t{root.prd_dir}\t{root.source}")
+        sys.exit(0)

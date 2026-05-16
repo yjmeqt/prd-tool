@@ -50,3 +50,23 @@ def test_validate_unknown_ref_error_message(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert ".prd-tool.toml" in result.stderr
     assert "prd/index.xml" in result.stderr
+
+
+def test_prd_root_prints_resolved_root(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+
+    result = _run(["root"], cwd=tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    fields = result.stdout.strip().split("\t")
+    assert len(fields) == 3
+    assert Path(fields[0]).resolve() == tmp_path.resolve()
+    assert Path(fields[1]).resolve() == (tmp_path / "prd").resolve()
+    assert fields[2] == "toml"
+
+
+def test_prd_root_exit_1_when_missing(tmp_path: Path) -> None:
+    result = _run(["root"], cwd=tmp_path)
+
+    assert result.returncode == 1
+    assert ".prd-tool.toml" in result.stderr
