@@ -5,6 +5,15 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
+def has_unfinished_work(root: ET.Element) -> bool:
+    """True iff the PRD has at least one rule not ✅ or at least one bug not Fixed."""
+    for req in root.findall("requirement"):
+        for rule in req.findall("rule"):
+            if rule.get("status") != "✅":
+                return True
+    return any(bug.get("status") != "Fixed" for bug in root.findall("bug"))
+
+
 def compute_prd_stats(root: ET.Element) -> dict[str, int]:
     """Compute counters for a single <prd> element."""
     rules_done = 0
@@ -36,7 +45,7 @@ def compute_prd_stats(root: ET.Element) -> dict[str, int]:
     }
 
 
-def print_stats(path: Path) -> int:
+def print_stats(path: Path, unfinished_only: bool = False) -> int:
     """Print stats for a PRD file or a PRD index. Returns exit code."""
     try:
         tree = ET.parse(path)
@@ -48,6 +57,8 @@ def print_stats(path: Path) -> int:
 
     if root.tag == "prd":
         name = root.get("name", path.name)
+        if unfinished_only and not has_unfinished_work(root):
+            return 0
         stats = compute_prd_stats(root)
         print(_format_stats_line(name, stats))
         return 0
@@ -57,23 +68,29 @@ def print_stats(path: Path) -> int:
         exit_code = 0
         for module in root.findall("module"):
             module_name = module.get("name", "")
-            print(f"[{module_name}]")
+            module_rows: list[str] = []
             for entry in module.findall("entry"):
                 file_attr = entry.get("file", "")
                 entry_name = entry.get("name", file_attr)
                 target = base / file_attr
                 if not target.exists():
-                    print(f"  {entry_name}: (file not found: {target})")
+                    module_rows.append(f"  {entry_name}: (file not found: {target})")
                     exit_code = 1
                     continue
                 try:
                     sub_root = ET.parse(target).getroot()
                 except (ET.ParseError, OSError) as e:
-                    print(f"  {entry_name}: (parse error: {e})")
+                    module_rows.append(f"  {entry_name}: (parse error: {e})")
                     exit_code = 1
                     continue
+                if unfinished_only and not has_unfinished_work(sub_root):
+                    continue
                 stats = compute_prd_stats(sub_root)
-                print(f"  {_format_stats_line(entry_name, stats)}")
+                module_rows.append(f"  {_format_stats_line(entry_name, stats)}")
+            if module_rows:
+                print(f"[{module_name}]")
+                for row in module_rows:
+                    print(row)
         return exit_code
 
     print(

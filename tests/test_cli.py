@@ -143,3 +143,42 @@ def test_dashboard_no_tty_env_override_attempts_boot(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert "interactive terminal" not in result.stderr
     assert "cannot bind" in result.stderr
+
+
+def test_ls_unfinished_filters_done_refs(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    prd = tmp_path / "prd"
+    done = (
+        '<prd name="Done">'
+        '<requirement id="R1" name="x"><description>d</description>'
+        '<rule id="r" status="✅">all good</rule>'
+        "</requirement></prd>"
+    )
+    wip = (
+        '<prd name="Wip">'
+        '<requirement id="R1" name="x"><description>d</description>'
+        '<rule id="r" status="❌">todo</rule>'
+        "</requirement></prd>"
+    )
+    (prd / "alpha").mkdir(parents=True)
+    (prd / "beta").mkdir(parents=True)
+    (prd / "alpha" / "done.xml").write_text(done, encoding="utf-8")
+    (prd / "beta" / "wip.xml").write_text(wip, encoding="utf-8")
+
+    result = _run(["ls", "-u"], cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    refs = [ln for ln in result.stdout.splitlines() if ln]
+    assert refs == ["beta/wip"]
+
+
+def test_ls_without_unfinished_lists_all(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    prd = tmp_path / "prd"
+    (prd / "m").mkdir(parents=True)
+    (prd / "m" / "a.xml").write_text(VALID_MINIMAL, encoding="utf-8")
+    (prd / "m" / "b.xml").write_text(VALID_MINIMAL, encoding="utf-8")
+
+    result = _run(["ls"], cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    refs = sorted(ln for ln in result.stdout.splitlines() if ln)
+    assert refs == ["m/a", "m/b"]

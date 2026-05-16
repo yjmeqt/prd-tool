@@ -34,8 +34,8 @@ Let users run prd commands from anywhere inside a repository and address PRD fil
   <rule id="ls_command" status="✅">`prd ls` lists every PRD reference under the discovered PRD directory, one per line, suitable for piping; the index file itself is excluded from the listing.</rule>
   <rule id="ls_module_filter" status="✅">`prd ls module` lists only the references that live under the given module directory.</rule>
   <rule id="stats_default_index" status="✅">`prd stats` invoked with no argument operates on the index file under the discovered PRD directory.</rule>
-  <rule id="ls_unfinished_filter" status="❌">`prd ls --unfinished` (also accepted as `-u`) lists only PRD references that still have unfinished work — at least one rule whose status is not ✅, or at least one bug whose status is not Fixed. References whose rules are all done and have no open or fix-pending bugs are omitted. The flag composes with the optional module argument.</rule>
-  <rule id="stats_unfinished_filter" status="❌">`prd stats --unfinished` (also accepted as `-u`) restricts the report to features that still have unfinished rules or non-Fixed bugs; fully-complete features are omitted from the per-feature rows while the rollup totals continue to reflect every file scanned.</rule>
+  <rule id="ls_unfinished_filter" status="✅">`prd ls --unfinished` (also accepted as `-u`) lists only PRD references that still have unfinished work — at least one rule whose status is not ✅, or at least one bug whose status is not Fixed. References whose rules are all done and have no open or fix-pending bugs are omitted. The flag composes with the optional module argument.</rule>
+  <rule id="stats_unfinished_filter" status="✅">`prd stats --unfinished` (also accepted as `-u`) restricts the report to features that still have unfinished rules or non-Fixed bugs; fully-complete features are omitted from the per-feature rows while the rollup totals continue to reflect every file scanned.</rule>
 </requirement>
 
 <requirement id="R4" name="Configuration">
