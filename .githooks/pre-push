@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Mirrors .github/workflows/ci.yml so failures surface before CI does.
+# Enable with: git config core.hooksPath .githooks
+set -e
+
+echo "[pre-push] ruff check"
+uv run ruff check src/ tests/
+
+echo "[pre-push] ruff format --check"
+uv run ruff format --check src/ tests/
+
+echo "[pre-push] mypy"
+uv run mypy src/
+
+echo "[pre-push] pytest"
+uv run pytest -q

@@ -66,6 +66,16 @@ prd stats    prd/index.xml   # roll up across all entries
 
 See [`skills/prd/SKILL.md`](skills/prd/SKILL.md) for the full XML schema, requirement/rule/bug/ui-review writing rules, and the load workflow.
 
+## Contributor setup
+
+Enable the pre-push hook so local checks match CI:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook runs `ruff check`, `ruff format --check`, `mypy`, and `pytest` — the same steps `.github/workflows/ci.yml` runs.
+
 ## Repo Discovery
 
 `prd` walks up from your current directory to find the PRD root, like
