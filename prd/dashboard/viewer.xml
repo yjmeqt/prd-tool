@@ -134,6 +134,21 @@ A local web dashboard for browsing and lightly editing PRDs in a repository. Lau
   </steps>
 </bug>
 
+<bug id="sidebar_active_progress_wrong" status="Fix Pending" date="2026-05-16" rule="R11.indicators_match_stats">
+  <current>
+    In the left navigation sidebar, the progress indicator next to the currently-active feature (the row highlighted because the user is viewing it) shows a value that does not match the rule completion state of that PRD. The mismatch is between what the sidebar shows for the active feature and what the feature's own page header / `prd stats` reports for the same file.
+  </current>
+  <expected>
+    The sidebar's progress fraction (and active-bug badge, if any) next to the active feature always equals what `prd stats` reports for that PRD file, and matches the rules counter shown in the feature page header. The active row gets the same accurate indicators as any other row — being highlighted as the current position should not change what the values say.
+  </expected>
+  <steps>
+    1. Run `prd dashboard` and open any feature that has a mix of ✅ and ❌ rules.
+    2. Note the rules fraction shown in the feature page header (e.g. "7/10").
+    3. Look at the same feature's row in the left sidebar — it is highlighted as the active position.
+    4. Observe: the progress fraction shown next to the active feature in the sidebar does not match the page header (and does not match `prd stats prd/&lt;module&gt;/&lt;feature&gt;.xml` for the same file).
+  </steps>
+</bug>
+
 <bug id="orphan_server_outlives_terminal" status="Fixed" date="2026-05-16" rule="R1.tty_required">
   <current>
     The TTY gate only checks at launch time. If the user starts `prd dashboard` from a real terminal and later closes that terminal window (or the shell exits) without pressing Ctrl+C, the python server is reparented and keeps running in the background, holding the port. The next `prd dashboard` invocation fails with "cannot bind 127.0.0.1:8765 (Address already in use)" and the only recovery is to find and `kill` the orphan PID by hand.

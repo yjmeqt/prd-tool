@@ -3,6 +3,7 @@ import { api, ApiError } from "@/api";
 import { Rule } from "@/types";
 import { FigmaThumb } from "@/components/FigmaThumb";
 import { RichContent } from "@/components/RichContent";
+import { patchIndexStatsFromFeature } from "@/lib/cacheSync";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Check, X, CircleDashed } from "lucide-react";
@@ -40,6 +41,7 @@ export function RuleCard({
     mutationFn: (status: string) => api.setRuleStatus(module, feature, rule.id, status),
     onSuccess: (data) => {
       qc.setQueryData(["feature", module, feature], data);
+      patchIndexStatsFromFeature(qc, data);
       qc.invalidateQueries({ queryKey: ["index"] });
     },
     onError: (e: ApiError) => {
