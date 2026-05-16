@@ -57,3 +57,25 @@ def test_find_root_walks_up_to_marker(tmp_path: Path) -> None:
 
     assert root is not None
     assert root.repo_root == tmp_path
+
+
+def test_find_root_custom_dir(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text(
+        '[prd]\ndir = "docs/prd"\n', encoding="utf-8"
+    )
+
+    root = find_root(tmp_path)
+
+    assert root is not None
+    assert root.prd_dir == (tmp_path / "docs" / "prd").resolve()
+
+
+def test_find_root_malformed_toml_uses_default_dir(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text(
+        "this is = not [ valid toml", encoding="utf-8"
+    )
+
+    root = find_root(tmp_path)
+
+    assert root is not None
+    assert root.prd_dir == (tmp_path / "prd").resolve()
