@@ -1,0 +1,3 @@
+<notprd>
+  <overview>Root is not &lt;prd&gt; — this should fail validation.</overview>
+</notprd>

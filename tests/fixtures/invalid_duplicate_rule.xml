@@ -1,0 +1,9 @@
+<prd name="Dup Rule">
+<overview>Has duplicate rule IDs.</overview>
+
+<requirement id="R1" name="Test">
+  <description>Testing duplicate rule IDs.</description>
+  <rule id="same_id" status="✅">First rule.</rule>
+  <rule id="same_id" status="❌">Second rule with same ID.</rule>
+</requirement>
+</prd>

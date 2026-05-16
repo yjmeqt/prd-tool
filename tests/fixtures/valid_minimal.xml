@@ -1,0 +1,8 @@
+<prd name="Minimal Feature">
+<overview>A minimal valid PRD for testing.</overview>
+
+<requirement id="R1" name="Basic">
+  <description>Basic requirement with one rule.</description>
+  <rule id="hello" status="✅">Tapping the button shows a greeting.</rule>
+</requirement>
+</prd>

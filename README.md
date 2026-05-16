@@ -7,11 +7,17 @@ PRDs are stored per-project as `prd/<module>/<feature>.xml` and describe **what*
 ## Layout
 
 - [`skills/prd/`](skills/prd/) — the skill consumed by Claude Code / Cursor / Codex
-- [`skills/prd/scripts/prd-tool.py`](skills/prd/scripts/prd-tool.py) — XML validator, formatter, and stats roll-up (no external dependencies; uses the stdlib)
+- [`src/prd_tool/`](src/prd_tool/) — the `prd` CLI (validate, format, stats)
 
-## Install the skill
+## Install
 
-From any worktree:
+1. Install the CLI tool:
+
+```bash
+uv tool install git+https://github.com/yjmeqt/prd-tool.git
+```
+
+2. Install the skill:
 
 ```bash
 npx skills add yjmeqt/prd-tool
@@ -33,15 +39,13 @@ npx skills update
 npx skills remove yjmeqt/prd-tool
 ```
 
-## Use the tool directly
-
-`prd-tool.py` is a self-contained Python 3 script — no install step needed:
+## Use the CLI directly
 
 ```bash
-python3 .claude/skills/prd/scripts/prd-tool.py validate prd/<module>/<feature>.xml
-python3 .claude/skills/prd/scripts/prd-tool.py format   prd/<module>/<feature>.xml
-python3 .claude/skills/prd/scripts/prd-tool.py stats    prd/<module>/<feature>.xml
-python3 .claude/skills/prd/scripts/prd-tool.py stats    prd/index.xml   # roll up across all entries
+prd validate prd/<module>/<feature>.xml
+prd format   prd/<module>/<feature>.xml
+prd stats    prd/<module>/<feature>.xml
+prd stats    prd/index.xml   # roll up across all entries
 ```
 
 `stats` is read-only and never writes back.

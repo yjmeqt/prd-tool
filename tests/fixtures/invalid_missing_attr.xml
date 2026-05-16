@@ -1,0 +1,8 @@
+<prd name="Missing Attr">
+<overview>Missing required name attribute on requirement.</overview>
+
+<requirement id="R1">
+  <description>No name attribute here.</description>
+  <rule id="x" status="✅">Something.</rule>
+</requirement>
+</prd>

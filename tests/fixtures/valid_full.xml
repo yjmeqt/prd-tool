@@ -1,0 +1,58 @@
+<prd name="Full Feature">
+<overview>
+A complete PRD with multiple requirements, bugs, and UI reviews.
+</overview>
+
+<implementation platform="iOS" spec="ios/docs/specs/full/feature.md" />
+<implementation platform="Backend" spec="TBD" />
+
+<requirement id="R1" name="Display">
+  <description>
+    The main display requirement covering how content appears.
+  </description>
+  <rule id="show_list" status="✅">The list shows all items in order.
+    <figma_node name="List View" file="abc123" node="100-200" />
+  </rule>
+  <rule id="empty_state" status="❌" context="When no items exist">Show an empty state message.</rule>
+</requirement>
+
+<requirement id="R2" name="Interaction">
+  <description>
+    User interaction behaviors.
+  </description>
+  <rule id="tap_item" status="✅">Tapping an item navigates to detail.</rule>
+  <rule id="swipe_delete" status="⚠️">Swiping left reveals a delete action.</rule>
+  <ui_review status="❌" date="2026-05-01">
+    <finding rule="R1.show_list">Cell spacing does not match Figma (8pt vs 12pt).</finding>
+  </ui_review>
+</requirement>
+
+<bug id="list_scroll_crash" status="Open" date="2026-05-10" rule="R1.show_list">
+  <current>
+    Scrolling quickly through the list causes a crash.
+  </current>
+  <expected>
+    List scrolls smoothly without crashing.
+  </expected>
+  <steps>
+    1. Open the list view
+    2. Scroll rapidly up and down
+    3. Observe crash after ~20 items
+  </steps>
+</bug>
+
+<bug id="delete_wrong_item" status="Fixed" date="2026-04-20" rule="R2.swipe_delete">
+  <current>
+    Swiping to delete removes the wrong item.
+  </current>
+  <expected>
+    Swiping to delete removes the swiped item.
+  </expected>
+  <steps>
+    1. Open the list
+    2. Swipe left on item 3
+    3. Tap delete
+    4. Observe item 4 is deleted instead
+  </steps>
+</bug>
+</prd>

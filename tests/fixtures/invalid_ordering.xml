@@ -1,0 +1,8 @@
+<prd name="Bad Order">
+<requirement id="R1" name="Test">
+  <description>Testing ordering.</description>
+  <rule id="x" status="✅">A rule.</rule>
+</requirement>
+
+<overview>This comes after requirements — wrong order.</overview>
+</prd>

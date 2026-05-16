@@ -1,0 +1,8 @@
+<prd name="Bad Status">
+<overview>Rule has an invalid status value.</overview>
+
+<requirement id="R1" name="Test">
+  <description>Testing invalid status.</description>
+  <rule id="x" status="INVALID">This status is not in the allowed set.</rule>
+</requirement>
+</prd>

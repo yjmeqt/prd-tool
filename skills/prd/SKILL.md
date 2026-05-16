@@ -8,6 +8,8 @@ allowed-tools: Read, Write, Edit, Glob, Grep, mcp__figma__get_design_context, mc
 
 Load product requirements, Figma designs, and implementation context before starting work on a feature.
 
+**Prerequisite:** Install the `prd` CLI via `uv tool install git+https://github.com/yjmeqt/prd-tool.git` before using this skill.
+
 ## Usage
 
 ```
@@ -28,7 +30,7 @@ If no argument is provided, infer the module from conversation context.
 ### Step 2: Read and validate the PRD
 
 1. Read `prd/<module>/<feature>.xml`
-2. Run `python3 scripts/prd-tool.py validate prd/<module>/<feature>.xml` — report any errors before proceeding
+2. Run `prd validate prd/<module>/<feature>.xml` — report any errors before proceeding
 3. Parse the XML structure — see **PRD File Structure** below for the schema
 4. Extract: `<implementation>` specs, `<requirement>` blocks with rules and statuses, `<ui_review>` findings, `<bug>` entries
 
@@ -115,8 +117,8 @@ on `<prd>` or in `prd/index.xml`. They are computed on demand from the rules,
 bugs, and `<ui_review>` elements via:
 
 ```
-python3 scripts/prd-tool.py stats prd/<module>/<feature>.xml
-python3 scripts/prd-tool.py stats prd/index.xml   # roll up across all entries
+prd stats prd/<module>/<feature>.xml
+prd stats prd/index.xml   # roll up across all entries
 ```
 
 `stats` is read-only — it never writes back to any XML.
@@ -346,7 +348,7 @@ Before any code is written on a given platform, ensure that platform's spec exis
 When implementation of a rule is complete:
 
 1. Update the `status` attribute on the `<rule>` to `✅`
-2. Run `python3 scripts/prd-tool.py format prd/<module>/<feature>.xml` to normalize formatting and encode special characters
+2. Run `prd format prd/<module>/<feature>.xml` to normalize formatting and encode special characters
 3. Update the sub-tasks table in the spec referenced by the platform's `<implementation spec="…">` with completion status
 
 ## Auto-trigger
@@ -370,5 +372,5 @@ When the user asks to inspect, review, or do a visual walkthrough of implemented
    - Set `status` to `❌` if any findings exist, `⚠️` for partial resolution, `✅` when all findings are resolved; set `date` to today (YYYY-MM-DD)
    - Add one `<finding rule="R<n>.rule_id">…</finding>` per discrepancy; omit all findings when `status="✅"`
    - If a `<ui_review>` already exists for this requirement, update its `status`, `date`, and findings in place instead of adding a second one
-5. Run `python3 scripts/prd-tool.py format prd/<module>/<feature>.xml` to normalize formatting
-6. Run `python3 scripts/prd-tool.py validate prd/<module>/<feature>.xml` to confirm the PRD still parses
+5. Run `prd format prd/<module>/<feature>.xml` to normalize formatting
+6. Run `prd validate prd/<module>/<feature>.xml` to confirm the PRD still parses

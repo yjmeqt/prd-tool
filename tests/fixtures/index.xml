@@ -1,0 +1,6 @@
+<prd_index>
+  <module name="test">
+    <entry name="Minimal" file="valid_minimal.xml" />
+    <entry name="Full" file="valid_full.xml" />
+  </module>
+</prd_index>
