@@ -101,3 +101,87 @@ def test_root_serves_placeholder_when_no_static(prd_dir: Path) -> None:
     r = client.get("/")
     assert r.status_code == 200
     assert "PRD Dashboard" in r.text
+
+
+# Rich-content (XHTML) JSON serialization tests
+
+
+_RICH_PRD = (
+    '<prd name="Rich Demo">\n'
+    "<overview>\n"
+    "Use <code>POST /login</code> for sign-in.<br/>\n"
+    "Returns <strong>200</strong> on success.\n"
+    "</overview>\n"
+    "\n"
+    '<requirement id="R1" name="Rich rules">\n'
+    "  <description>Intro with <em>emphasis</em>."
+    "<ul><li>One</li><li>Two</li></ul></description>\n"
+    '  <rule id="r1" status="✅">Tap '
+    '<a href="prd:dashboard/viewer#R1">the dashboard launch rules</a>.</rule>\n'
+    '  <rule id="r2" status="❌">Shows '
+    '<img src="screenshots/err.png" alt="Error toast"/> when failing.</rule>\n'
+    '  <rule id="r3" status="✅">Plain text rule with no markup at all.</rule>\n'
+    "</requirement>\n"
+    "\n"
+    '<bug id="b1" status="Open" date="2026-05-16" rule="R1.r1">\n'
+    "  <current>Login throws <strong>500</strong>.</current>\n"
+    "  <expected>Login returns <code>200</code>.</expected>\n"
+    "  <steps>1. Open <em>login</em>. 2. Submit.</steps>\n"
+    "</bug>\n"
+    "\n"
+    "</prd>\n"
+)
+
+
+@pytest.fixture
+def rich_prd_dir(tmp_path: Path) -> Path:
+    d = tmp_path / "prd"
+    (d / "content").mkdir(parents=True)
+    (d / "content" / "rich.xml").write_text(_RICH_PRD, encoding="utf-8")
+    return d
+
+
+def test_rich_overview_is_html_string(rich_prd_dir: Path) -> None:
+    payload = load_feature(rich_prd_dir, FeatureRef("content", "rich"))
+    assert payload is not None
+    assert "<code>POST /login</code>" in payload["overview"]
+    assert "<br/>" in payload["overview"]
+    assert "<strong>200</strong>" in payload["overview"]
+
+
+def test_rich_description_serializes_children(rich_prd_dir: Path) -> None:
+    payload = load_feature(rich_prd_dir, FeatureRef("content", "rich"))
+    assert payload is not None
+    desc = payload["requirements"][0]["description"]
+    assert "<em>emphasis</em>" in desc
+    assert "<ul>" in desc and "<li>One</li>" in desc
+
+
+def test_rich_rule_text_serializes_links(rich_prd_dir: Path) -> None:
+    payload = load_feature(rich_prd_dir, FeatureRef("content", "rich"))
+    assert payload is not None
+    r1 = payload["requirements"][0]["rules"][0]
+    assert '<a href="prd:dashboard/viewer#R1">' in r1["text"]
+
+
+def test_void_tags_self_close_in_json(rich_prd_dir: Path) -> None:
+    payload = load_feature(rich_prd_dir, FeatureRef("content", "rich"))
+    assert payload is not None
+    r2 = payload["requirements"][0]["rules"][1]
+    assert '<img src="screenshots/err.png" alt="Error toast"/>' in r2["text"]
+
+
+def test_plain_text_rule_unchanged(rich_prd_dir: Path) -> None:
+    payload = load_feature(rich_prd_dir, FeatureRef("content", "rich"))
+    assert payload is not None
+    r3 = payload["requirements"][0]["rules"][2]
+    assert r3["text"] == "Plain text rule with no markup at all."
+
+
+def test_rich_bug_fields_are_html(rich_prd_dir: Path) -> None:
+    payload = load_feature(rich_prd_dir, FeatureRef("content", "rich"))
+    assert payload is not None
+    bug = payload["bugs"][0]
+    assert "<strong>500</strong>" in bug["current"]
+    assert "<code>200</code>" in bug["expected"]
+    assert "<em>login</em>" in bug["steps"]

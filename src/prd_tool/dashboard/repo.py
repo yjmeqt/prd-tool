@@ -9,6 +9,24 @@ from typing import Any
 
 from prd_tool.stats import compute_prd_stats
 
+# HTML void elements: self-close in JSON output so dangerouslySetInnerHTML
+# parses them correctly. Non-void empty elements get an explicit close tag.
+_VOID_HTML_TAGS = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "source",
+    "track",
+    "wbr",
+}
+
 
 @dataclass(frozen=True)
 class FeatureRef:
@@ -81,6 +99,45 @@ def build_index(prd_dir: Path) -> dict[str, Any]:
     }
 
 
+def _escape_html_text(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _escape_html_attr(value: str) -> str:
+    return (
+        value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    )
+
+
+def _serialize_html_element(elem: ET.Element) -> str:
+    """Serialize one element as HTML (void tags self-close; others use full close)."""
+    parts = [f'{k}="{_escape_html_attr(v)}"' for k, v in elem.attrib.items()]
+    attr_str = (" " + " ".join(parts)) if parts else ""
+    if elem.tag in _VOID_HTML_TAGS:
+        return f"<{elem.tag}{attr_str}/>"
+    inner = _inner_html(elem)
+    return f"<{elem.tag}{attr_str}>{inner}</{elem.tag}>"
+
+
+def _inner_html(elem: ET.Element, exclude_tags: tuple[str, ...] = ()) -> str:
+    """Serialize the inner content of a rich-text element as an HTML string.
+
+    Plain text becomes escaped HTML text. Child elements are serialized as HTML
+    (void tags self-close). Children in ``exclude_tags`` are skipped along with
+    their tail so the caller can handle them separately (e.g. <figma_node>).
+    """
+    parts: list[str] = []
+    if elem.text:
+        parts.append(_escape_html_text(elem.text))
+    for child in elem:
+        if child.tag in exclude_tags:
+            continue
+        parts.append(_serialize_html_element(child))
+        if child.tail:
+            parts.append(_escape_html_text(child.tail))
+    return "".join(parts).strip()
+
+
 def _rule_to_dict(rule: ET.Element) -> dict[str, Any]:
     figma_nodes = []
     for fn in rule.findall("figma_node"):
@@ -95,15 +152,13 @@ def _rule_to_dict(rule: ET.Element) -> dict[str, Any]:
         "id": rule.get("id", ""),
         "status": rule.get("status", ""),
         "context": rule.get("context"),
-        "text": (rule.text or "").strip(),
+        "text": _inner_html(rule, exclude_tags=("figma_node",)),
         "figma_nodes": figma_nodes,
     }
 
 
 def _ui_review_to_dict(ui: ET.Element) -> dict[str, Any]:
-    findings = [
-        {"rule": f.get("rule", ""), "text": (f.text or "").strip()} for f in ui.findall("finding")
-    ]
+    findings = [{"rule": f.get("rule", ""), "text": _inner_html(f)} for f in ui.findall("finding")]
     return {
         "status": ui.get("status", ""),
         "date": ui.get("date", ""),
@@ -113,7 +168,7 @@ def _ui_review_to_dict(ui: ET.Element) -> dict[str, Any]:
 
 def _requirement_to_dict(req: ET.Element) -> dict[str, Any]:
     desc_el = req.find("description")
-    description = (desc_el.text or "").strip() if desc_el is not None else ""
+    description = _inner_html(desc_el) if desc_el is not None else ""
     return {
         "id": req.get("id", ""),
         "name": req.get("name", ""),
@@ -124,20 +179,20 @@ def _requirement_to_dict(req: ET.Element) -> dict[str, Any]:
 
 
 def _bug_to_dict(bug: ET.Element) -> dict[str, Any]:
-    def _child_text(tag: str) -> str:
+    def _child_html(tag: str) -> str:
         el = bug.find(tag)
-        if el is None or el.text is None:
+        if el is None:
             return ""
-        return el.text.strip()
+        return _inner_html(el)
 
     return {
         "id": bug.get("id", ""),
         "status": bug.get("status", ""),
         "date": bug.get("date", ""),
         "rule": bug.get("rule", ""),
-        "current": _child_text("current"),
-        "expected": _child_text("expected"),
-        "steps": _child_text("steps"),
+        "current": _child_html("current"),
+        "expected": _child_html("expected"),
+        "steps": _child_html("steps"),
     }
 
 
@@ -152,7 +207,7 @@ def load_feature(prd_dir: Path, ref: FeatureRef) -> dict[str, Any] | None:
     if root.tag != "prd":
         return {"ref": ref.ref, "parse_error": f"root is <{root.tag}>, expected <prd>"}
     overview_el = root.find("overview")
-    overview = (overview_el.text or "").strip() if overview_el is not None else ""
+    overview = _inner_html(overview_el) if overview_el is not None else ""
     implementations = [
         {
             "platform": impl.get("platform", ""),

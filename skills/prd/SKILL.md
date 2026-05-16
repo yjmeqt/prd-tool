@@ -169,7 +169,7 @@ Rules: self-close void tags (`<br/>`, `<img/>`, `<hr/>`); every element has a cl
 <rule id="r1" status="✅"><![CDATA[Raw HTML with <br> and & symbols passes through.]]></rule>
 ```
 
-Both forms validate. `prd format` preserves whichever form was authored — it does not convert between them.
+Both forms validate. `prd format` **normalizes CDATA to XHTML** on the next run: CDATA contents are emitted as escaped XHTML text, so any markup inside CDATA must itself be well-formed XHTML if you want it to keep working as markup after formatting.
 
 **Plain text still works.** Rich-text fields with no markup or CDATA continue to validate and render unchanged. Existing PRDs need no migration.
 
