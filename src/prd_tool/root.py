@@ -36,6 +36,14 @@ def find_root(start: Path | None = None) -> Root | None:
                 source="toml",
             )
 
+        index = ancestor / "prd" / "index.xml"
+        if index.is_file():
+            return Root(
+                repo_root=ancestor,
+                prd_dir=ancestor / "prd",
+                source="convention",
+            )
+
     return None
 
 

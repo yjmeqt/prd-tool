@@ -24,3 +24,36 @@ def test_find_root_finds_toml_at_cwd(tmp_path: Path) -> None:
         prd_dir=tmp_path / "prd",
         source="toml",
     )
+
+
+def test_find_root_finds_convention(tmp_path: Path) -> None:
+    _touch(tmp_path / "prd" / "index.xml")
+
+    root = find_root(tmp_path)
+
+    assert root == Root(
+        repo_root=tmp_path,
+        prd_dir=tmp_path / "prd",
+        source="convention",
+    )
+
+
+def test_find_root_toml_beats_convention(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    _touch(tmp_path / "prd" / "index.xml")
+
+    root = find_root(tmp_path)
+
+    assert root is not None
+    assert root.source == "toml"
+
+
+def test_find_root_walks_up_to_marker(tmp_path: Path) -> None:
+    sub = tmp_path / "nested" / "deeper"
+    sub.mkdir(parents=True)
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+
+    root = find_root(sub)
+
+    assert root is not None
+    assert root.repo_root == tmp_path
