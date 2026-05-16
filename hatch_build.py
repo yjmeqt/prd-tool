@@ -1,22 +1,19 @@
-"""Hatch build hook: ensure the dashboard static bundle exists before packaging.
+"""Hatch build hook: ensure the dashboard static directory exists.
 
 The Vite-built frontend lives at ``src/prd_tool/dashboard/static/`` and is
 gitignored — CI rebuilds it before publishing to PyPI. Installs straight from
 git (``uv tool install git+...``) and editable installs in fresh checkouts
-don't run that build, so ``force-include`` would fail. This hook drops in a
-minimal placeholder when the real bundle is missing so the wheel still builds;
-the dashboard CLI itself reports the missing bundle at runtime.
+don't run that build, so hatchling's ``force-include`` would error out.
+
+This hook just guarantees the directory exists so the build succeeds; it does
+not write any placeholder file. ``server.py`` already serves an in-process
+fallback page when ``static/index.html`` is missing, so leaving the directory
+empty preserves that behavior.
 """
 
 from pathlib import Path
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-
-_PLACEHOLDER_HTML = """<!doctype html>
-<meta charset="utf-8">
-<title>prd dashboard</title>
-<p>Dashboard bundle not built. Run <code>pnpm --dir frontend install &amp;&amp; pnpm --dir frontend build</code>.</p>
-"""
 
 
 class StaticBundleStubHook(BuildHookInterface):  # type: ignore[misc]
@@ -24,7 +21,4 @@ class StaticBundleStubHook(BuildHookInterface):  # type: ignore[misc]
 
     def initialize(self, version: str, build_data: dict) -> None:
         static_dir = Path(self.root) / "src" / "prd_tool" / "dashboard" / "static"
-        if static_dir.exists() and any(static_dir.iterdir()):
-            return
         static_dir.mkdir(parents=True, exist_ok=True)
-        (static_dir / "index.html").write_text(_PLACEHOLDER_HTML, encoding="utf-8")
