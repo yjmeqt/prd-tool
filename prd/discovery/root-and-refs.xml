@@ -1,0 +1,48 @@
+<prd name="Root Discovery and Short References">
+
+<overview>
+Let users run prd commands from anywhere inside a repository and address PRD files by short references instead of full paths. The tool finds the PRD root by walking up the directory tree for a marker, the same way git locates a repository. Once a root is known, short references like `comments/likes-saves` resolve to the matching file under the discovered PRD directory.
+</overview>
+<implementation platform="CLI" spec="TBD" />
+
+<requirement id="R1" name="Root discovery">
+  <description>
+    The tool finds the PRD root by walking upward from the current working directory and stopping at the first ancestor that carries a marker.
+  </description>
+  <rule id="walk_up" status="✅">Discovery starts at the current working directory and walks up through parent directories until a marker is found or the filesystem root is reached.</rule>
+  <rule id="toml_marker" status="✅">A `.prd-tool.toml` file at any ancestor directory marks that directory as the PRD root.</rule>
+  <rule id="convention_marker" status="✅">An ancestor directory containing `prd/index.xml` is recognized as the PRD root even without a configuration file.</rule>
+  <rule id="toml_wins" status="✅">When both markers exist in the same ancestor, the `.prd-tool.toml` marker takes precedence.</rule>
+</requirement>
+
+<requirement id="R2" name="Short references">
+  <description>
+    Every command that takes a PRD file accepts either a path or a short reference of the form `module/feature`. Existing path-based invocations keep working.
+  </description>
+  <rule id="path_passthrough" status="❌">An argument that resolves to an existing file is used as-is, regardless of whether a PRD root is present.</rule>
+  <rule id="module_feature_ref" status="❌">A reference of the form `module/feature` resolves to the matching PRD file under the discovered PRD directory.</rule>
+  <rule id="xml_suffix_tolerated" status="❌">References ending in `.xml` resolve the same way as references without the suffix.</rule>
+  <rule id="unknown_ref_error" status="❌">When a reference cannot be resolved, the tool exits with an error that names both markers it searched for and the directory where the search started.</rule>
+</requirement>
+
+<requirement id="R3" name="Discovery commands">
+  <description>
+    Commands that surface the discovered root and the PRDs it contains, plus a no-argument default for stats.
+  </description>
+  <rule id="root_command" status="❌">`prd root` prints the resolved repository root, the resolved PRD directory, and the marker source that was matched.</rule>
+  <rule id="root_command_no_root_error" status="❌">When no root can be found, `prd root` exits non-zero and reports the markers it looked for and the directory where it started.</rule>
+  <rule id="ls_command" status="❌">`prd ls` lists every PRD reference under the discovered PRD directory, one per line, suitable for piping; the index file itself is excluded from the listing.</rule>
+  <rule id="ls_module_filter" status="❌">`prd ls module` lists only the references that live under the given module directory.</rule>
+  <rule id="stats_default_index" status="❌">`prd stats` invoked with no argument operates on the index file under the discovered PRD directory.</rule>
+</requirement>
+
+<requirement id="R4" name="Configuration">
+  <description>
+    The `.prd-tool.toml` file is optional and may override the location of the PRD directory.
+  </description>
+  <rule id="custom_prd_dir" status="✅">Setting `dir` under the `[prd]` section in `.prd-tool.toml` places the PRD directory at that path, resolved relative to the toml file's directory.</rule>
+  <rule id="malformed_toml_tolerated" status="✅">When `.prd-tool.toml` cannot be parsed, the tool falls back to the default PRD directory rather than failing.</rule>
+  <rule id="unknown_keys_ignored" status="✅">Unknown keys or sections in `.prd-tool.toml` are ignored so the schema can grow without breaking older files.</rule>
+</requirement>
+
+</prd>
