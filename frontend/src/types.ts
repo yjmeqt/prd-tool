@@ -2,6 +2,7 @@ export type Stats = {
   rules_done: number;
   rules_total: number;
   bugs_open: number;
+  bugs_active: number;
   ui_reviewed: number;
   ui_total: number;
 };

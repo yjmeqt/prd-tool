@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowRight, Bug as BugIcon } from "lucide-react";
+import { ArrowRight, Bug as BugIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { RichContent } from "@/components/RichContent";
@@ -36,10 +36,16 @@ export function BugCard({ bug, module, feature }: { bug: Bug; module: string; fe
   const qc = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmKind, setConfirmKind] = useState<"fixed" | "reopen" | null>(null);
+  // Fixed bugs collapse to a one-line summary by default; Open / Fix-Pending
+  // bugs stay expanded so active work is visible at a glance.
+  const [expanded, setExpanded] = useState<boolean>(bug.status !== "Fixed");
 
   const mut = useMutation({
     mutationFn: (status: string) => api.setBugStatus(module, feature, bug.id, status),
-    onSuccess: (data) => qc.setQueryData(["feature", module, feature], data),
+    onSuccess: (data) => {
+      qc.setQueryData(["feature", module, feature], data);
+      qc.invalidateQueries({ queryKey: ["index"] });
+    },
     onError: (e: ApiError) => {
       const detail =
         typeof e.detail === "object" && e.detail && "message" in e.detail
@@ -91,7 +97,19 @@ export function BugCard({ bug, module, feature }: { bug: Bug; module: string; fe
       >
         <CardContent className="flex items-start justify-between gap-6 p-5">
           <div className="min-w-0 flex-1 space-y-3">
-            <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="flex w-full items-center gap-3 flex-wrap text-left"
+              aria-expanded={expanded}
+              aria-label={expanded ? "Collapse bug details" : "Expand bug details"}
+            >
+              {fixed &&
+                (expanded ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                ))}
               <BugIcon className="h-3.5 w-3.5 text-muted-foreground" />
               <code className="text-sm font-mono font-medium">{bug.id}</code>
               <Badge
@@ -103,37 +121,39 @@ export function BugCard({ bug, module, feature }: { bug: Bug; module: string; fe
               <span className="eyebrow text-muted-foreground">
                 filed {bug.date} · {bug.rule}
               </span>
-            </div>
-            <div className="grid grid-cols-[5.5rem_1fr] gap-x-4 gap-y-2 text-[15px] leading-relaxed">
-              <span className="eyebrow text-muted-foreground pt-1.5">Current</span>
-              <RichContent
-                as="span"
-                html={bug.current}
-                module={module}
-                feature={feature}
-                className="border-l hairline pl-3"
-              />
-              <span className="eyebrow text-muted-foreground pt-1.5">Expected</span>
-              <RichContent
-                as="span"
-                html={bug.expected}
-                module={module}
-                feature={feature}
-                className="border-l hairline pl-3 font-display italic"
-              />
-              {bug.steps && (
-                <>
-                  <span className="eyebrow text-muted-foreground pt-1.5">Steps</span>
-                  <RichContent
-                    as="span"
-                    html={bug.steps}
-                    module={module}
-                    feature={feature}
-                    className="border-l hairline pl-3 whitespace-pre-wrap font-mono text-[13px]"
-                  />
-                </>
-              )}
-            </div>
+            </button>
+            {expanded && (
+              <div className="grid grid-cols-[5.5rem_1fr] gap-x-4 gap-y-2 text-[15px] leading-relaxed">
+                <span className="eyebrow text-muted-foreground pt-1.5">Current</span>
+                <RichContent
+                  as="span"
+                  html={bug.current}
+                  module={module}
+                  feature={feature}
+                  className="border-l hairline pl-3"
+                />
+                <span className="eyebrow text-muted-foreground pt-1.5">Expected</span>
+                <RichContent
+                  as="span"
+                  html={bug.expected}
+                  module={module}
+                  feature={feature}
+                  className="border-l hairline pl-3 font-display italic"
+                />
+                {bug.steps && (
+                  <>
+                    <span className="eyebrow text-muted-foreground pt-1.5">Steps</span>
+                    <RichContent
+                      as="span"
+                      html={bug.steps}
+                      module={module}
+                      feature={feature}
+                      className="border-l hairline pl-3 whitespace-pre-wrap font-mono text-[13px]"
+                    />
+                  </>
+                )}
+              </div>
+            )}
           </div>
           <Button
             variant="outline"

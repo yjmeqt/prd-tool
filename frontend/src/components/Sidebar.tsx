@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
+import { Check } from "lucide-react";
 import { api } from "@/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import type { IndexFeature } from "@/types";
 
 export function Sidebar() {
   const q = useQuery({ queryKey: ["index"], queryFn: api.index });
@@ -53,7 +55,7 @@ export function Sidebar() {
                         to={`/p/${f.module}/${f.feature}`}
                         className={({ isActive }) =>
                           cn(
-                            "group flex items-baseline gap-3 px-4 py-1.5 text-[15px] transition-colors relative",
+                            "group flex items-center gap-3 px-4 py-1.5 text-[15px] transition-colors relative",
                             isActive
                               ? "text-foreground"
                               : "text-muted-foreground hover:text-foreground",
@@ -72,12 +74,14 @@ export function Sidebar() {
                             </span>
                             <span
                               className={cn(
-                                "font-display leading-tight",
+                                "flex-1 min-w-0 truncate font-display leading-tight",
                                 isActive && "italic font-medium",
                               )}
+                              title={f.name}
                             >
                               {f.name}
                             </span>
+                            <FeatureIndicators feature={f} />
                             {isActive && (
                               <span
                                 aria-hidden
@@ -100,5 +104,43 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+  );
+}
+
+function FeatureIndicators({ feature }: { feature: IndexFeature }) {
+  const { rules_done, rules_total, bugs_active } = feature.stats;
+  const isComplete = rules_total > 0 && rules_done === rules_total && bugs_active === 0;
+
+  if (isComplete) {
+    return (
+      <span
+        aria-label="All work complete"
+        title="All rules done, no active bugs"
+        className="shrink-0 inline-flex items-center text-muted-foreground/60"
+      >
+        <Check className="h-3 w-3" />
+      </span>
+    );
+  }
+
+  return (
+    <span className="shrink-0 inline-flex items-center gap-1.5">
+      {rules_total > 0 && (
+        <span
+          className="font-mono text-[10px] tabular-nums text-muted-foreground/70"
+          title={`${rules_done} of ${rules_total} rules done`}
+        >
+          {rules_done}/{rules_total}
+        </span>
+      )}
+      {bugs_active > 0 && (
+        <span
+          className="font-mono text-[10px] tabular-nums px-1 py-px rounded-sm bg-destructive/10 text-destructive"
+          title={`${bugs_active} active bug${bugs_active === 1 ? "" : "s"}`}
+        >
+          {bugs_active}
+        </span>
+      )}
+    </span>
   );
 }

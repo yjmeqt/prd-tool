@@ -46,11 +46,23 @@ def main() -> None:
         default=None,
         help="Path or <module>/<feature> ref; defaults to <prd_dir>/index.xml",
     )
+    stats_parser.add_argument(
+        "-u",
+        "--unfinished",
+        action="store_true",
+        help="Restrict per-feature rows to features with unfinished rules or non-Fixed bugs",
+    )
 
     sub.add_parser("root", help="Print the resolved PRD root (debugging)")
 
     ls_parser = sub.add_parser("ls", help="List PRD refs under the PRD dir")
     ls_parser.add_argument("module", nargs="?", default=None, help="Optional module filter")
+    ls_parser.add_argument(
+        "-u",
+        "--unfinished",
+        action="store_true",
+        help="List only refs with unfinished work (rules not ✅, or bugs not Fixed)",
+    )
 
     dash_parser = sub.add_parser("dashboard", help="Launch the local PRD dashboard")
     dash_parser.add_argument(
@@ -116,7 +128,7 @@ def main() -> None:
                 sys.exit(1)
         else:
             path = _resolve_or_exit(args.ref)
-        sys.exit(print_stats(path))
+        sys.exit(print_stats(path, unfinished_only=args.unfinished))
 
     elif args.command == "root":
         from prd_tool.root import find_root
@@ -146,13 +158,27 @@ def main() -> None:
         if not base.is_dir():
             print(f"prd ls: {base} is not a directory", file=sys.stderr)
             sys.exit(1)
+        import xml.etree.ElementTree as ET
+
+        from prd_tool.stats import has_unfinished_work
+
         refs: list[str] = []
         for xml in sorted(base.rglob("*.xml")):
             rel = xml.relative_to(root.prd_dir)
             if rel.name == "index.xml":
                 continue
+            if args.unfinished:
+                try:
+                    sub_root = ET.parse(xml).getroot()
+                except (ET.ParseError, OSError):
+                    # Treat unparseable files as unfinished so they remain visible.
+                    refs.append(str(rel.with_suffix("")))
+                    continue
+                if sub_root.tag != "prd" or not has_unfinished_work(sub_root):
+                    continue
             refs.append(str(rel.with_suffix("")))
-        print("\n".join(refs))
+        if refs:
+            print("\n".join(refs))
         sys.exit(0)
 
     elif args.command == "dashboard":

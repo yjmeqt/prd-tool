@@ -5,6 +5,8 @@ import { RuleCard } from "@/components/RuleCard";
 import { BugCard } from "@/components/BugCard";
 import { UiReviewBlock } from "@/components/UiReviewBlock";
 import { RichContent } from "@/components/RichContent";
+import { UnfinishedToggle } from "@/components/UnfinishedToggle";
+import { useUnfinishedOnly } from "@/useUnfinishedOnly";
 import { useDocumentTitle } from "@/useDocumentTitle";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +21,7 @@ export function FeaturePage() {
     enabled: Boolean(module && feature),
   });
   useDocumentTitle([q.data?.name ?? feature]);
+  const [unfinishedOnly] = useUnfinishedOnly();
 
   if (q.isLoading)
     return <div className="text-sm text-muted-foreground italic py-12">Loading…</div>;
@@ -42,9 +45,9 @@ export function FeaturePage() {
     );
   }
 
-  const sortedBugs = [...data.bugs].sort(
-    (a, b) => (BUG_ORDER[a.status] ?? 9) - (BUG_ORDER[b.status] ?? 9),
-  );
+  const sortedBugs = [...data.bugs]
+    .sort((a, b) => (BUG_ORDER[a.status] ?? 9) - (BUG_ORDER[b.status] ?? 9))
+    .filter((b) => !unfinishedOnly || b.status !== "Fixed");
 
   const pct =
     data.stats.rules_total === 0
@@ -121,50 +124,70 @@ export function FeaturePage() {
 
       {/* Requirements */}
       <section className="mb-14 rise rise-3">
-        <SectionHead eyebrow="The Articles" title="Requirements" count={data.requirements.length} />
+        <div className="flex items-baseline justify-between gap-4">
+          <SectionHead
+            eyebrow="The Articles"
+            title="Requirements"
+            count={data.requirements.length}
+          />
+          <UnfinishedToggle />
+        </div>
         <div className="space-y-12">
-          {data.requirements.map((req, idx) => (
-            <article key={req.id} id={req.id} className="relative pl-14 scroll-mt-20">
-              {/* Ledger gutter */}
-              <div className="absolute left-0 top-0 bottom-0 w-10 flex flex-col items-start">
-                <div className="font-display text-4xl leading-none text-destructive italic">
-                  {req.id}
+          {data.requirements.map((req, idx) => {
+            const visibleRules = unfinishedOnly
+              ? req.rules.filter((r) => r.status !== "✅")
+              : req.rules;
+            const allDone = unfinishedOnly && req.rules.length > 0 && visibleRules.length === 0;
+            return (
+              <article key={req.id} id={req.id} className="relative pl-14 scroll-mt-20">
+                {/* Ledger gutter */}
+                <div className="absolute left-0 top-0 bottom-0 w-10 flex flex-col items-start">
+                  <div className="font-display text-4xl leading-none text-destructive italic">
+                    {req.id}
+                  </div>
+                  <div className="mt-2 w-px flex-1 bg-rule" />
+                  <div className="font-mono text-[10px] tabular-nums text-muted-foreground/60 mt-2">
+                    {String(idx + 1).padStart(2, "0")}/
+                    {String(data.requirements.length).padStart(2, "0")}
+                  </div>
                 </div>
-                <div className="mt-2 w-px flex-1 bg-rule" />
-                <div className="font-mono text-[10px] tabular-nums text-muted-foreground/60 mt-2">
-                  {String(idx + 1).padStart(2, "0")}/
-                  {String(data.requirements.length).padStart(2, "0")}
-                </div>
-              </div>
 
-              <header className="mb-4">
-                <h3 className="font-display text-3xl tracking-tight leading-tight">{req.name}</h3>
-                {req.description && (
-                  <RichContent
-                    html={req.description}
-                    module={data.module}
-                    feature={data.feature}
-                    className="mt-2 text-muted-foreground leading-relaxed max-w-2xl"
-                  />
+                <header className="mb-4">
+                  <h3 className="font-display text-3xl tracking-tight leading-tight">{req.name}</h3>
+                  {req.description && !allDone && (
+                    <RichContent
+                      html={req.description}
+                      module={data.module}
+                      feature={data.feature}
+                      className="mt-2 text-muted-foreground leading-relaxed max-w-2xl"
+                    />
+                  )}
+                  {allDone && (
+                    <p className="mt-2 text-muted-foreground/70 text-sm italic">
+                      All {req.rules.length} rules complete.
+                    </p>
+                  )}
+                </header>
+
+                {!allDone && (
+                  <div className="border-t hairline">
+                    {visibleRules.map((rule) => (
+                      <RuleCard
+                        key={rule.id}
+                        rule={rule}
+                        reqId={req.id}
+                        module={data.module}
+                        feature={data.feature}
+                      />
+                    ))}
+                  </div>
                 )}
-              </header>
-
-              <div className="border-t hairline">
-                {req.rules.map((rule) => (
-                  <RuleCard
-                    key={rule.id}
-                    rule={rule}
-                    reqId={req.id}
-                    module={data.module}
-                    feature={data.feature}
-                  />
+                {req.ui_reviews.map((ur, i) => (
+                  <UiReviewBlock key={i} review={ur} module={data.module} feature={data.feature} />
                 ))}
-              </div>
-              {req.ui_reviews.map((ur, i) => (
-                <UiReviewBlock key={i} review={ur} module={data.module} feature={data.feature} />
-              ))}
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       </section>
 
