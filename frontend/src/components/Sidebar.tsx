@@ -26,7 +26,7 @@ export function Sidebar() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="px-2 py-4">
             {q.isLoading && (
               <div className="px-4 text-sm text-muted-foreground italic">Loading…</div>
