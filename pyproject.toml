@@ -25,10 +25,7 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 readme = "README.md"
 authors = [{ name = "yjmeqt" }]
-dependencies = []
-
-[project.optional-dependencies]
-dashboard = [
+dependencies = [
   "fastapi>=0.115",
   "uvicorn>=0.30",
   "watchfiles>=0.22",

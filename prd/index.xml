@@ -5,4 +5,7 @@
   <module name="dashboard">
     <entry file="dashboard/viewer.xml" name="PRD Dashboard Viewer" />
   </module>
+  <module name="install">
+    <entry file="install/single-install.xml" name="Single-Step CLI Install" />
+  </module>
 </prd_index>

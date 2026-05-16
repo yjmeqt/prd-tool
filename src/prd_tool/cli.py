@@ -190,18 +190,9 @@ def main() -> None:
             )
             sys.exit(1)
 
-        try:
-            import uvicorn
-        except ImportError:
-            print(
-                "prd dashboard: dashboard dependencies are not installed.\n"
-                "  Install with: uv tool install 'prd-tool[dashboard]'\n"
-                "  Or:           pip install 'prd-tool[dashboard]'",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
         import socket
+
+        import uvicorn
 
         probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:

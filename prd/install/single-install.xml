@@ -1,0 +1,41 @@
+<prd name="Single-Step CLI Install">
+
+<overview>
+The `prd` CLI should install in one step. After a single install command, every subcommand the tool advertises — including `prd dashboard` — must work without follow-up installs, reinstalls, or extra flags. Users should not have to know which features need which extras, and should never hit a "dependencies not installed" error from a subcommand that `prd --help` lists.
+</overview>
+<implementation platform="Packaging" spec="docs/specs/install/single-install.md" />
+
+<requirement id="R1" name="One-command install">
+  <description>
+    Installing the CLI from its canonical source makes all advertised subcommands runnable.
+  </description>
+  <rule id="single_command" status="✅">A first-time user can install `prd` with one command from the README and run every subcommand listed in `prd --help` without any further install step.</rule>
+  <rule id="no_extras_flag" status="✅">The documented install command does not require the user to name optional extras or feature groups.</rule>
+  <rule id="dashboard_works" status="✅">Immediately after the documented install, `prd dashboard` starts the server successfully; it never prints a "dependencies not installed" message.</rule>
+</requirement>
+
+<requirement id="R2" name="No reinstall to unlock features">
+  <description>
+    Once installed, the tool never asks the user to reinstall or pass `--with`/`--reinstall` to gain access to a subcommand it already exposes.
+  </description>
+  <rule id="no_reinstall_prompt" status="✅">No error or help output from any subcommand instructs the user to run a second install, reinstall, or pip/uv command to unlock that subcommand.</rule>
+  <rule id="upgrade_preserves_features" status="✅">Upgrading the tool with the standard upgrade command keeps every previously available subcommand working without re-specifying extras.</rule>
+</requirement>
+
+<requirement id="R3" name="Discoverability matches capability">
+  <description>
+    What `prd --help` advertises is what a freshly installed `prd` can do.
+  </description>
+  <rule id="help_matches_runtime" status="✅">Every subcommand shown in `prd --help` runs end-to-end on a fresh install without an "install extras" error path.</rule>
+  <rule id="readme_one_block" status="✅">The README's install section shows exactly one install command for the CLI, with no conditional second command for optional features.</rule>
+</requirement>
+
+<requirement id="R4" name="Skill and docs alignment">
+  <description>
+    External-facing docs reflect the single-install model.
+  </description>
+  <rule id="skill_prerequisite" status="✅">The `prd` skill's Prerequisite section lists a single install command and does not mention extras, reinstall, or recovery commands for missing optional dependencies.</rule>
+  <rule id="readme_no_recovery" status="✅">The README does not contain a "if you already installed without the extra, reinstall with…" recovery block.</rule>
+</requirement>
+
+</prd>

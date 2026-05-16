@@ -340,9 +340,7 @@ wheels = [
 name = "prd-tool"
 version = "0.1.0"
 source = { editable = "." }
-
-[package.optional-dependencies]
-dashboard = [
+dependencies = [
     { name = "fastapi" },
     { name = "uvicorn" },
     { name = "watchfiles" },
@@ -361,11 +359,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", marker = "extra == 'dashboard'", specifier = ">=0.115" },
-    { name = "uvicorn", marker = "extra == 'dashboard'", specifier = ">=0.30" },
-    { name = "watchfiles", marker = "extra == 'dashboard'", specifier = ">=0.22" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "uvicorn", specifier = ">=0.30" },
+    { name = "watchfiles", specifier = ">=0.22" },
 ]
-provides-extras = ["dashboard"]
 
 [package.metadata.requires-dev]
 dev = [
