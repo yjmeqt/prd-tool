@@ -33,10 +33,22 @@ After pushing skill edits to the repo:
 npx skills update
 ```
 
+## Upgrade the CLI
+
+```bash
+uv tool upgrade prd-tool
+```
+
 ## Remove the skill
 
 ```bash
 npx skills remove yjmeqt/prd-tool
+```
+
+## Uninstall the CLI
+
+```bash
+uv tool uninstall prd-tool
 ```
 
 ## Use the CLI directly
