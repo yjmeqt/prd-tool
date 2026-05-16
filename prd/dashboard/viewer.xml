@@ -109,6 +109,17 @@ A local web dashboard for browsing and lightly editing PRDs in a repository. Lau
   <rule id="rollup_toggle" status="❌">The status rollup home view exposes the same toggle; when on, rows whose rules are all ✅ and have zero open or fix-pending bugs are hidden from the table.</rule>
 </requirement>
 
+<requirement id="R11" name="Sidebar status indicators">
+  <description>
+    Each feature entry in the navigation sidebar surfaces a compact at-a-glance status — its rules-done progress and its open bug count — so a reviewer can see where work remains without opening every feature.
+  </description>
+  <rule id="progress_indicator" status="❌">Each feature entry in the sidebar shows a compact progress indicator reporting how many of its rules are ✅ out of the total (e.g. "7/10").</rule>
+  <rule id="bug_count_badge" status="❌">Each feature entry shows a badge with the number of bugs whose status is Open or Fix Pending; the badge is hidden when that count is zero.</rule>
+  <rule id="indicators_match_stats" status="❌">The progress and bug-count values shown next to each feature match what `prd stats` reports for the same file, and match the corresponding row in the status rollup home view.</rule>
+  <rule id="indicators_complete_state" status="❌" context="all rules ✅ and zero Open/Fix-Pending bugs">A feature with no remaining work is visually distinct from features that still have unfinished rules or active bugs (e.g. a muted check or "done" treatment in place of the progress fraction).</rule>
+  <rule id="indicators_live_update" status="❌">When a rule status or bug status changes on disk, the affected feature's sidebar indicators update without requiring a page reload, consistent with the live-reflection behavior in R7.</rule>
+</requirement>
+
 <bug id="sidebar_stays_light_in_dark_mode" status="Fixed" date="2026-05-16" rule="R9.theme_readable_in_dark">
   <current>
     When the operating system switches to dark mode (or starts in dark mode), the sidebar — including its background, the per-module headers, and the inactive feature links — remains light. The rest of the dashboard (main content area, cards, banners, badges) renders dark correctly, so the sidebar looks visibly out of place against the dark main panel.
