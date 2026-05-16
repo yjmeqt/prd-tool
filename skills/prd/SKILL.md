@@ -72,6 +72,9 @@ Output a structured summary:
 
 ### Figma Context
 <key design details extracted from loaded figma_nodes>
+
+### Cross-references
+<list of prd: links found, grouped by target PRD; omit section if none>
 ```
 
 Then ask: "Ready to proceed. What would you like to work on?"
@@ -127,6 +130,93 @@ prd stats prd/index.xml   # roll up across all entries
 **Element ordering inside `<prd>`:** `<overview>` → `<implementation>` → `<requirement>` → `<bug>`
 
 **IDs are permanent:** Never rename or reuse a rule ID or bug ID. Bugs, specs, and conversation history reference them.
+
+## Rich Content (XHTML)
+
+Some text fields may contain inline **XHTML** in addition to plain text. The full spec for this behavior is in `prd/content/rich-content.xml`.
+
+### Rich-text fields
+
+XHTML is allowed inside (and only inside):
+
+- `<overview>`
+- `<description>` (inside `<requirement>`)
+- The text content of `<rule>`
+- The text content of `<current>`, `<expected>`, `<steps>` inside `<bug>`
+- The text content of `<finding>` inside `<ui_review>`
+
+Every other element accepts plain text only. Attribute values are always plain text.
+
+### Authoring
+
+**XHTML inline (preferred).** Write the markup directly inside the field. Content must be well-formed XML:
+
+```xml
+<description>
+  Use <code>POST /login</code> with a JSON body.
+  <ul>
+    <li>Returns <strong>200</strong> on success</li>
+    <li>Returns <strong>401</strong> on bad credentials</li>
+  </ul>
+</description>
+```
+
+Rules: self-close void tags (`<br/>`, `<img/>`, `<hr/>`); every element has a close tag; escape `&` as `&amp;`, `<` as `&lt;` in text.
+
+**CDATA fallback (only when XHTML can't express the content).** Use when pasting HTML from another tool that uses unclosed `<br>` or unescaped `&`:
+
+```xml
+<rule id="r1" status="✅"><![CDATA[Raw HTML with <br> and & symbols passes through.]]></rule>
+```
+
+Both forms validate. `prd format` preserves whichever form was authored — it does not convert between them.
+
+**Plain text still works.** Rich-text fields with no markup or CDATA continue to validate and render unchanged. Existing PRDs need no migration.
+
+### Images
+
+Embed images with `<img>`. Local files live alongside the PRD; absolute URLs pass through.
+
+```xml
+<rule id="error_state" status="❌">
+  The login-error toast overlaps the keyboard.
+  <img src="screenshots/login-error.png" alt="Toast clipped by keyboard"/>
+</rule>
+```
+
+- **Relative `src`** resolves against `prd/<module>/`. So `src="screenshots/login-error.png"` reads `prd/<module>/screenshots/login-error.png`.
+- **Absolute URLs** (`http:`, `https:`, `data:`) pass through unchanged. No server-side fetch.
+
+### Cross-references between PRDs
+
+Use a `prd:` URI inside `<a href="…">` to link to another PRD.
+
+```xml
+<rule id="lifecycle_match" status="❌">
+  Lifecycle mirrors <a href="prd:dashboard/viewer#R1">the dashboard's launch rules</a>.
+</rule>
+```
+
+Fragment syntax:
+
+- `prd:<module>/<feature>` — whole PRD
+- `prd:<module>/<feature>#R<n>` — a requirement
+- `prd:<module>/<feature>#R<n>.<rule_id>` — a specific rule
+- `prd:<module>/<feature>#bug.<bug_id>` — a specific bug
+
+The dashboard intercepts `prd:` links and routes client-side. The skill (this loader) does not auto-load referenced PRDs — it lists them in the summary so the user can choose.
+
+### Skill behavior when loading a PRD with rich content
+
+When you encounter rich-text fields during Step 2 parsing:
+
+1. **Read local images.** For every `<img>` whose `src` is relative, resolve the path against the PRD's module directory and `Read` the file so the image is available as visual context. Skip absolute URLs.
+2. **Collect `prd:` cross-references.** Walk every `<a href="prd:…">` inside rich-text fields. Group them by target PRD and include them in the Step 5 summary under a `### Cross-references` section. Do not auto-load them.
+3. **Preserve markup when quoting.** When echoing rule text or descriptions in your summary, render the human-readable text (strip tags for the short summary) but keep the original markup intact in the PRD file when editing.
+
+### Security note
+
+The dashboard renders rich-text HTML without sanitization. Opening an untrusted PRD in the dashboard is equivalent to running its HTML in your browser. Don't open PRDs from outside your trust boundary.
 
 ## Bug Writing Rules
 
