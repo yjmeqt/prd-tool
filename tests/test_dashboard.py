@@ -185,3 +185,36 @@ def test_rich_bug_fields_are_html(rich_prd_dir: Path) -> None:
     assert "<strong>500</strong>" in bug["current"]
     assert "<code>200</code>" in bug["expected"]
     assert "<em>login</em>" in bug["steps"]
+
+
+# Asset endpoint
+
+
+def test_asset_endpoint_serves_local_file(rich_prd_dir: Path) -> None:
+    asset = rich_prd_dir / "content" / "screenshots" / "err.png"
+    asset.parent.mkdir(parents=True, exist_ok=True)
+    asset.write_bytes(b"PNGDATA")
+    client = TestClient(create_app(rich_prd_dir))
+    r = client.get("/api/prd-asset/content/rich/screenshots/err.png")
+    assert r.status_code == 200
+    assert r.content == b"PNGDATA"
+
+
+def test_asset_endpoint_rejects_traversal(rich_prd_dir: Path) -> None:
+    secret = rich_prd_dir.parent / "secret.txt"
+    secret.write_text("classified", encoding="utf-8")
+    client = TestClient(create_app(rich_prd_dir))
+    r = client.get("/api/prd-asset/content/rich/../../secret.txt")
+    assert r.status_code == 404
+
+
+def test_asset_endpoint_missing_file_is_404(rich_prd_dir: Path) -> None:
+    client = TestClient(create_app(rich_prd_dir))
+    r = client.get("/api/prd-asset/content/rich/nope.png")
+    assert r.status_code == 404
+
+
+def test_asset_endpoint_missing_module_is_404(rich_prd_dir: Path) -> None:
+    client = TestClient(create_app(rich_prd_dir))
+    r = client.get("/api/prd-asset/ghost/feat/x.png")
+    assert r.status_code == 404

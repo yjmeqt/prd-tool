@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Body, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from prd_tool.dashboard.edits import (
@@ -48,6 +48,23 @@ def create_app(prd_dir: Path) -> FastAPI:
     @app.get("/api/health")
     def health() -> dict[str, Any]:
         return {"ok": True, "prd_dir": str(prd_dir)}
+
+    @app.get("/api/prd-asset/{module}/{feature}/{asset_path:path}")
+    def get_prd_asset(module: str, feature: str, asset_path: str) -> FileResponse:
+        # asset_path is resolved against prd_dir/<module>/. The feature segment
+        # in the URL is informational (it scopes assets to a feature in clients),
+        # but on disk every asset under the module dir is reachable.
+        module_root = (prd_dir / module).resolve()
+        if not module_root.is_dir():
+            raise HTTPException(status_code=404, detail="module not found")
+        target = (module_root / asset_path).resolve()
+        try:
+            target.relative_to(module_root)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail="asset path escapes module") from e
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail="asset not found")
+        return FileResponse(target)
 
     def _resolve_prd_path(module: str, feature: str) -> Path:
         path = prd_dir / module / f"{feature}.xml"
