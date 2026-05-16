@@ -1,0 +1,5 @@
+<prd_index>
+  <module name="discovery">
+    <entry file="discovery/root-and-refs.xml" name="Root Discovery and Short References" />
+  </module>
+</prd_index>

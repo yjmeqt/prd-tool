@@ -65,3 +65,30 @@ prd stats    prd/index.xml   # roll up across all entries
 ## PRD file shape
 
 See [`skills/prd/SKILL.md`](skills/prd/SKILL.md) for the full XML schema, requirement/rule/bug/ui-review writing rules, and the load workflow.
+
+## Repo Discovery
+
+`prd` walks up from your current directory to find the PRD root, like
+`git`. The first marker wins:
+
+1. `.prd-tool.toml` at an ancestor directory (preferred). Minimal schema:
+
+   ```toml
+   [prd]
+   dir = "prd"   # optional, relative to the toml's directory; default "prd"
+   ```
+
+2. An ancestor containing `prd/index.xml` (zero-config convention).
+
+Once a root is found, all subcommands accept short refs in place of
+paths:
+
+```
+prd validate comments/likes-saves     # resolves to <prd_dir>/comments/likes-saves.xml
+prd stats                             # defaults to <prd_dir>/index.xml
+prd ls                                # list all refs
+prd ls comments                       # list refs under one module
+prd root                              # debug: print the resolved root
+```
+
+Existing absolute or relative paths still work unchanged.
