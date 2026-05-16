@@ -70,3 +70,33 @@ def test_prd_root_exit_1_when_missing(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert ".prd-tool.toml" in result.stderr
+
+
+def test_prd_ls_lists_refs(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    (tmp_path / "prd").mkdir()
+    (tmp_path / "prd" / "index.xml").write_text("", encoding="utf-8")
+    (tmp_path / "prd" / "comments").mkdir()
+    (tmp_path / "prd" / "comments" / "likes-saves.xml").write_text("", encoding="utf-8")
+    (tmp_path / "prd" / "comments" / "mentions.xml").write_text("", encoding="utf-8")
+    (tmp_path / "prd" / "auth").mkdir()
+    (tmp_path / "prd" / "auth" / "login.xml").write_text("", encoding="utf-8")
+
+    result = _run(["ls"], cwd=tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    lines = sorted(result.stdout.strip().splitlines())
+    assert lines == ["auth/login", "comments/likes-saves", "comments/mentions"]
+
+
+def test_prd_ls_filters_by_module(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    (tmp_path / "prd" / "comments").mkdir(parents=True)
+    (tmp_path / "prd" / "comments" / "likes-saves.xml").write_text("", encoding="utf-8")
+    (tmp_path / "prd" / "auth").mkdir()
+    (tmp_path / "prd" / "auth" / "login.xml").write_text("", encoding="utf-8")
+
+    result = _run(["ls", "comments"], cwd=tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().splitlines() == ["comments/likes-saves"]

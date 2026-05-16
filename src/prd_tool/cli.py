@@ -48,6 +48,9 @@ def main() -> None:
 
     sub.add_parser("root", help="Print the resolved PRD root (debugging)")
 
+    ls_parser = sub.add_parser("ls", help="List PRD refs under the PRD dir")
+    ls_parser.add_argument("module", nargs="?", default=None, help="Optional module filter")
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -115,4 +118,24 @@ def main() -> None:
             )
             sys.exit(1)
         print(f"{root.repo_root}\t{root.prd_dir}\t{root.source}")
+        sys.exit(0)
+
+    elif args.command == "ls":
+        from prd_tool.root import find_root
+
+        root = find_root()
+        if root is None:
+            print("prd ls: no PRD root found from cwd", file=sys.stderr)
+            sys.exit(1)
+        base = root.prd_dir if args.module is None else root.prd_dir / args.module
+        if not base.is_dir():
+            print(f"prd ls: {base} is not a directory", file=sys.stderr)
+            sys.exit(1)
+        refs: list[str] = []
+        for xml in sorted(base.rglob("*.xml")):
+            rel = xml.relative_to(root.prd_dir)
+            if rel.name == "index.xml":
+                continue
+            refs.append(str(rel.with_suffix("")))
+        print("\n".join(refs))
         sys.exit(0)
