@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "prd-tool"
 version = "0.1.0"
 description = "PRD XML validation, formatting, and stats tool"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 readme = "README.md"
 authors = [{ name = "yjmeqt" }]
@@ -19,7 +19,7 @@ prd = "prd_tool.cli:main"
 dev = ["pytest", "ruff", "mypy"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
@@ -30,7 +30,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 warn_unreachable = true
 
