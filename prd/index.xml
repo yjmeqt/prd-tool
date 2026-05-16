@@ -8,4 +8,7 @@
   <module name="install">
     <entry file="install/single-install.xml" name="Single-Step CLI Install" />
   </module>
+  <module name="content">
+    <entry file="content/rich-content.xml" name="Rich PRD Content (XHTML)" />
+  </module>
 </prd_index>

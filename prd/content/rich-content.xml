@@ -1,0 +1,87 @@
+<prd name="Rich PRD Content (XHTML)">
+
+<overview>
+PRD text fields today are plain strings: `&lt;overview&gt;`, `&lt;description&gt;`, the body of `&lt;rule&gt;` / `&lt;bug&gt;` children, and `&lt;finding&gt;` text are rendered verbatim in the dashboard and passed verbatim to Claude via the `prd` skill. This makes it awkward to call out emphasis, paste a screenshot of a failing UI into a bug, share a code snippet that explains a rule, or point one PRD at another. This feature lets those fields contain inline XHTML so authors can format prose, embed images, and cross-link PRDs while keeping the surrounding XML schema, the `prd` CLI, and the skill loader unchanged for callers that don't opt in.
+</overview>
+<implementation platform="CLI" spec="docs/specs/content/rich-content-cli.md" />
+<implementation platform="Dashboard" spec="docs/specs/content/rich-content-dashboard.md" />
+<implementation platform="Skill" spec="docs/specs/content/rich-content-skill.md" />
+
+<requirement id="R1" name="Rich-text fields and authoring form">
+  <description>
+    A fixed set of "rich-text" elements may contain inline XHTML in addition to plain text. Authors write XHTML directly; CDATA is supported as a fallback when content can't easily be made well-formed.
+  </description>
+  <rule id="rich_text_fields" status="❌">The rich-text fields are exactly: `&lt;overview&gt;`, `&lt;description&gt;` (inside `&lt;requirement&gt;`), the text content of `&lt;rule&gt;`, the text content of `&lt;current&gt;` / `&lt;expected&gt;` / `&lt;steps&gt;` inside `&lt;bug&gt;`, and the text content of `&lt;finding&gt;`. Every other element accepts plain text only.</rule>
+  <rule id="xhtml_primary" status="❌">Authors write inline XHTML directly inside a rich-text field, with no wrapper. Content must be well-formed XML: self-closing void tags (`&lt;br/&gt;`, `&lt;img/&gt;`, `&lt;hr/&gt;`), explicit close tags for every element, and `&amp;` escaped as `&amp;amp;`. The XML parser treats child elements as element nodes, not strings.</rule>
+  <rule id="cdata_fallback" status="❌">If a rich-text field's content cannot be expressed as well-formed XML — typically when pasting raw HTML from another tool that uses unclosed `&lt;br&gt;` or unescaped `&amp;` — authors wrap the content in `&lt;![CDATA[ ... ]]&gt;`. The validator accepts both forms; `prd format` preserves whichever form was authored.</rule>
+  <rule id="plain_text_still_valid" status="❌">A rich-text field containing only plain text (no child elements, no CDATA) continues to validate and render exactly as before. Existing PRDs need no migration.</rule>
+</requirement>
+
+<requirement id="R2" name="Validation and formatting">
+  <description>
+    `prd validate` and `prd format` understand rich-text fields and pass their inner content through without imposing structural rules on HTML descendants.
+  </description>
+  <rule id="validator_skips_descendants" status="❌">When `prd validate` enters a rich-text field, it stops applying child-tag, ordering, and required-attribute checks to descendants of that field. Any XHTML tag is allowed at any depth inside a rich-text field.</rule>
+  <rule id="format_preserves_xhtml" status="❌">`prd format` preserves XHTML child elements verbatim — tag name, attributes, attribute order, and nesting are emitted as authored. It does not re-wrap inline XHTML in CDATA.</rule>
+  <rule id="format_preserves_cdata" status="❌">`prd format` preserves CDATA-wrapped content verbatim when the source used CDATA. It does not convert CDATA to XHTML or strip the CDATA markers.</rule>
+  <rule id="round_trip_stable" status="❌">Running `prd format` twice on the same file produces byte-identical output on the second pass, for both XHTML-authored and CDATA-authored rich-text fields.</rule>
+</requirement>
+
+<requirement id="R3" name="JSON API serialization">
+  <description>
+    The dashboard's JSON API exposes rich-text fields as opaque HTML strings so the frontend doesn't need to know which authoring form was used.
+  </description>
+  <rule id="rich_fields_as_html_string" status="❌">In `GET /api/prd/{module}/{feature}` and `GET /api/index` responses, every rich-text field appears as a single HTML string field (e.g. `description`, `overview`, `rule.text`, `bug.current`, `finding.text`). The string is the inner content of the XML element: text and serialized child elements concatenated in source order.</rule>
+  <rule id="xhtml_children_serialized" status="❌">When the source used XHTML child elements, those elements are serialized into the HTML string with stable attribute order and proper escaping of text content. Self-closing void tags remain self-closing.</rule>
+  <rule id="cdata_content_unwrapped" status="❌">When the source used CDATA, the JSON string contains the raw inner content without the `&lt;![CDATA[` / `]]&gt;` markers.</rule>
+  <rule id="plain_text_unchanged_json" status="❌">When the source contained only plain text, the JSON string is exactly that text. No HTML tags are introduced.</rule>
+</requirement>
+
+<requirement id="R4" name="Images: local assets and external URLs">
+  <description>
+    Authors embed images via `&lt;img&gt;`. Local image files live alongside the PRD on disk; external images are referenced by URL. The dashboard serves local images from a dedicated endpoint with path-traversal protection.
+  </description>
+  <rule id="local_image_layout" status="❌">A PRD at `prd/&lt;module&gt;/&lt;feature&gt;.xml` may reference local images with relative `src` paths. The path is resolved against `prd/&lt;module&gt;/` so `&lt;img src="screenshots/login-error.png"/&gt;` resolves to `prd/&lt;module&gt;/screenshots/login-error.png`.</rule>
+  <rule id="external_image_passthrough" status="❌">An `&lt;img&gt;` whose `src` is an absolute URL (http, https, or data:) is passed through to the dashboard unchanged. No server-side fetch.</rule>
+  <rule id="asset_endpoint" status="❌">The dashboard exposes `GET /api/prd-asset/{module}/{feature}/{path}` which serves the file at `&lt;prd_dir&gt;/{module}/{path}`. The endpoint resolves the path and rejects any request that escapes `&lt;prd_dir&gt;/{module}/` with HTTP 404, including symlinks that point outside.</rule>
+  <rule id="dashboard_rewrites_relative_src" status="❌">Before rendering rich-text HTML, the dashboard rewrites every relative `&lt;img src&gt;` (no scheme, not starting with `/`) to `/api/prd-asset/{module}/{feature}/{src}`. Absolute and data URLs are left alone.</rule>
+</requirement>
+
+<requirement id="R5" name="Cross-references between PRDs">
+  <description>
+    A `prd:` URI scheme lets one PRD link to another PRD, optionally to a specific requirement, rule, or bug anchor.
+  </description>
+  <rule id="cross_ref_syntax" status="❌">An `&lt;a href="prd:&lt;module&gt;/&lt;feature&gt;"&gt;` link points to another PRD. Optionally a fragment selects a sub-element: `prd:&lt;module&gt;/&lt;feature&gt;#R3` (requirement), `prd:&lt;module&gt;/&lt;feature&gt;#R3.rule_id` (rule), `prd:&lt;module&gt;/&lt;feature&gt;#bug.&lt;bug_id&gt;` (bug).</rule>
+  <rule id="dashboard_intercepts_prd_links" status="❌">In the dashboard, clicking a `prd:` link does not perform a browser navigation. Instead a client-side handler parses the URI, calls `react-router` to navigate to `/p/{module}/{feature}`, and if a fragment is present scrolls the matching element into view.</rule>
+  <rule id="skill_follows_prd_links" status="❌">When the `prd` skill loads a PRD, after it presents its primary summary it lists any `prd:` cross-references it found, grouped by target PRD, so the user can decide whether to load those PRDs next. The skill does not auto-load referenced PRDs.</rule>
+</requirement>
+
+<requirement id="R6" name="Dashboard rendering">
+  <description>
+    The dashboard renders rich-text HTML in both themes with prose typography, and supports the same set of tags the API delivers without sanitization.
+  </description>
+  <rule id="render_component" status="❌">A single `&lt;RichContent html={...} prdRef={{module, feature}} /&gt;` React component is the only renderer for rich-text strings. It is used wherever the old code rendered `{rule.text}`, `{req.description}`, `{f.text}`, `{bug.current/expected/steps}`, and `{prd.overview}`.</rule>
+  <rule id="no_sanitizer" status="❌">`RichContent` uses `dangerouslySetInnerHTML` with no sanitizer. The skill doc warns that opening an untrusted PRD in the dashboard is equivalent to running its HTML in your browser.</rule>
+  <rule id="prose_styles" status="❌">Rich content uses a `.prose` wrapper so headings, paragraphs, lists, blockquotes, inline code, code blocks, and tables render with consistent typography in both light and dark themes.</rule>
+  <rule id="image_max_width" status="❌">Images rendered inside rich content are bounded to the column width by default (`max-width: 100%; height: auto`) so a wide screenshot doesn't blow out the layout.</rule>
+</requirement>
+
+<requirement id="R7" name="Skill awareness">
+  <description>
+    The `prd` skill teaches Claude how rich content is authored and how to consume it when loading a PRD.
+  </description>
+  <rule id="skill_documents_xhtml" status="❌">`skills/prd/SKILL.md` documents the rich-text field list, XHTML-first authoring rules (well-formedness, void tags, `&amp;` escaping), the CDATA fallback, the `prd:` cross-ref scheme, and the local-vs-external image rules.</rule>
+  <rule id="skill_reads_local_images" status="❌">When the skill loads a PRD, for every relative `&lt;img src&gt;` in a rich-text field it Reads the resolved local file so the image is available to Claude as visual context. Absolute URLs are not fetched.</rule>
+  <rule id="skill_lists_cross_refs" status="❌">The skill's context summary includes a "Cross-references" section listing every `prd:` link found in the PRD, with target module/feature and (if present) the requirement/rule/bug anchor.</rule>
+</requirement>
+
+<requirement id="R8" name="Backwards compatibility">
+  <description>
+    All existing PRDs, CLI behavior, JSON-API shape for plain-text fields, and skill behavior continue to work unchanged.
+  </description>
+  <rule id="existing_prds_unchanged" status="❌">Every PRD currently under `prd/` validates, formats, and renders identically after this change, with no edits to the file.</rule>
+  <rule id="cli_flags_unchanged" status="❌">`prd validate`, `prd format`, and `prd stats` keep their current command-line interface and exit codes.</rule>
+  <rule id="api_shape_unchanged" status="❌">The JSON keys returned by `/api/index` and `/api/prd/{module}/{feature}` are the same as before; only their values may now be HTML strings instead of plain text.</rule>
+</requirement>
+
+</prd>
