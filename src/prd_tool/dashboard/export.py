@@ -47,16 +47,27 @@ def export_static(prd_dir: Path, out_dir: Path) -> dict[str, int]:
         )
         features += 1
 
+    # Only copy assets from modules that actually contain a feature, so that
+    # repo roots used as the PRD dir (`.prd-tool.toml` with dir = ".") don't
+    # accidentally slurp `.git/`, `.github/`, or any other top-level directory
+    # that happens to live next to the PRDs.
     asset_root = out_dir / "asset"
     assets = 0
-    for module_dir in sorted(p for p in prd_dir.iterdir() if p.is_dir()):
+    modules_with_features = {ref.module for ref, _ in list_feature_files(prd_dir)}
+    for module_name in sorted(modules_with_features):
+        module_dir = prd_dir / module_name
+        if not module_dir.is_dir():
+            continue
         for path in module_dir.rglob("*"):
             if not path.is_file():
                 continue
             if path.suffix.lower() == ".xml":
                 continue
             rel = path.relative_to(module_dir)
-            dest = asset_root / module_dir.name / rel
+            # Skip anything inside a hidden directory (e.g. `.git`, `.DS_Store`).
+            if any(part.startswith(".") for part in rel.parts):
+                continue
+            dest = asset_root / module_name / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, dest)
             assets += 1

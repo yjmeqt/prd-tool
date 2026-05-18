@@ -49,6 +49,38 @@ def test_export_static_writes_index_and_features(tmp_path: Path) -> None:
     assert asset.read_bytes() == b"\x89PNG\r\n\x1a\n"
 
 
+def test_export_static_ignores_non_module_dirs(tmp_path: Path) -> None:
+    """When the PRD root is the repo root, top-level dirs like .git must
+    not be slurped into asset/."""
+    from prd_tool.dashboard.export import export_static
+
+    prd_dir = tmp_path / "prd-root"
+    feature = prd_dir / "auth" / "login.xml"
+    feature.parent.mkdir(parents=True)
+    feature.write_text(VALID_FULL, encoding="utf-8")
+    (prd_dir / "auth" / "screenshots").mkdir()
+    (prd_dir / "auth" / "screenshots" / "login.png").write_bytes(b"\x89PNG")
+    # Sibling directories that look like modules but have no PRDs.
+    (prd_dir / ".git").mkdir()
+    (prd_dir / ".git" / "config").write_text("nope", encoding="utf-8")
+    (prd_dir / ".github" / "workflows").mkdir(parents=True)
+    (prd_dir / ".github" / "workflows" / "pages.yml").write_text("nope", encoding="utf-8")
+    (prd_dir / "scripts").mkdir()
+    (prd_dir / "scripts" / "release.sh").write_text("nope", encoding="utf-8")
+    # Dotfile inside the real module — should also be skipped.
+    (prd_dir / "auth" / ".DS_Store").write_bytes(b"\x00\x00")
+
+    counts = export_static(prd_dir, tmp_path / "out")
+
+    assert counts["features"] == 1
+    assert counts["assets"] == 1
+    assert (tmp_path / "out" / "asset" / "auth" / "screenshots" / "login.png").is_file()
+    assert not (tmp_path / "out" / "asset" / ".git").exists()
+    assert not (tmp_path / "out" / "asset" / ".github").exists()
+    assert not (tmp_path / "out" / "asset" / "scripts").exists()
+    assert not (tmp_path / "out" / "asset" / "auth" / ".DS_Store").exists()
+
+
 def test_export_static_cli(tmp_path: Path) -> None:
     _make_repo(tmp_path)
     out = tmp_path / "out"
