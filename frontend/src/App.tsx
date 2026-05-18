@@ -7,6 +7,7 @@ import { useSystemTheme } from "@/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { AlertCircle } from "lucide-react";
+import { IS_READONLY } from "@/lib/staticMode";
 
 export function App() {
   useSystemTheme();
@@ -23,6 +24,14 @@ export function App() {
                 <span>Vol. 01</span>
                 <span className="text-rule">·</span>
                 <span>Product Requirements</span>
+                {IS_READONLY && (
+                  <>
+                    <span className="text-rule">·</span>
+                    <span className="border hairline px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider">
+                      Read-only
+                    </span>
+                  </>
+                )}
               </div>
               <div className="eyebrow text-muted-foreground tabular-nums">
                 {new Date().toLocaleDateString("en-US", {

@@ -1,12 +1,21 @@
 /** Pure helpers for the RichContent renderer. Kept separate so the component
  *  module exports only a component (keeps react-refresh happy). */
 
-/** Rewrite relative <img src="..."> to /api/prd-asset/<module>/<feature>/<src>. */
+import { IS_READONLY, staticAssetUrl } from "./staticMode";
+
+/** Rewrite relative <img src="..."> to the dashboard's asset URL.
+ *
+ *  Live mode: /api/prd-asset/<module>/<feature>/<src>.
+ *  Static mode (VITE_STATIC_BASE): <BASE>/asset/<module>/<src>.
+ */
 export function rewriteImgSrc(html: string, module: string, feature: string): string {
   if (!html.includes("<img")) return html;
   return html.replace(/<img\b([^>]*?)\bsrc="([^"]+)"/gi, (match, pre, src) => {
     if (/^(https?:|data:|\/)/i.test(src)) return match;
     const cleaned = src.replace(/^\.?\//, "");
+    if (IS_READONLY) {
+      return `<img${pre}src="${staticAssetUrl(module, cleaned)}"`;
+    }
     const encoded = cleaned
       .split("/")
       .map((p: string) => encodeURIComponent(p))

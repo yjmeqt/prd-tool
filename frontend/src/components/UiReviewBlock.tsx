@@ -7,6 +7,7 @@ import { Eye, Check } from "lucide-react";
 import { toast } from "sonner";
 import { RichContent } from "@/components/RichContent";
 import { patchIndexStatsFromFeature } from "@/lib/cacheSync";
+import { IS_READONLY } from "@/lib/staticMode";
 
 function detailMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -79,15 +80,17 @@ export function UiReviewBlock({
                 feature={feature}
                 className="flex-1"
               />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => mut.mutate(f.rule)}
-                disabled={mut.isPending}
-                className="h-7 px-2 text-xs"
-              >
-                <Check className="h-3.5 w-3.5 mr-1" /> Resolve
-              </Button>
+              {!IS_READONLY && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => mut.mutate(f.rule)}
+                  disabled={mut.isPending}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Check className="h-3.5 w-3.5 mr-1" /> Resolve
+                </Button>
+              )}
             </div>
           ))}
         </div>
