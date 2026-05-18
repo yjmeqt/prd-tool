@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { RichContent } from "@/components/RichContent";
 import { patchIndexStatsFromFeature } from "@/lib/cacheSync";
+import { IS_READONLY } from "@/lib/staticMode";
 
 const BUG_CYCLE: Record<string, string> = {
   Open: "Fix Pending",
@@ -157,16 +158,18 @@ export function BugCard({ bug, module, feature }: { bug: Bug; module: string; fe
               </div>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onAdvance}
-            disabled={mut.isPending}
-            className="shrink-0 rounded-none eyebrow"
-          >
-            {next}
-            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-          </Button>
+          {!IS_READONLY && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onAdvance}
+              disabled={mut.isPending}
+              className="shrink-0 rounded-none eyebrow"
+            >
+              {next}
+              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+            </Button>
+          )}
         </CardContent>
       </Card>
 

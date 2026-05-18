@@ -64,6 +64,15 @@ def main() -> None:
         help="List only refs with unfinished work (rules not ✅, or bugs not Fixed)",
     )
 
+    export_parser = sub.add_parser(
+        "export-json",
+        help="Write a static JSON snapshot of the dashboard (for read-only hosting)",
+    )
+    export_parser.add_argument(
+        "out",
+        help="Output directory; will contain index.json, prd/<m>/<f>.json, asset/<m>/...",
+    )
+
     dash_parser = sub.add_parser("dashboard", help="Launch the local PRD dashboard")
     dash_parser.add_argument(
         "--host", default="127.0.0.1", help="Host to bind (default: 127.0.0.1)"
@@ -179,6 +188,22 @@ def main() -> None:
             refs.append(str(rel.with_suffix("")))
         if refs:
             print("\n".join(refs))
+        sys.exit(0)
+
+    elif args.command == "export-json":
+        from prd_tool.dashboard.export import export_static
+        from prd_tool.root import find_root
+
+        root = find_root()
+        if root is None:
+            print("prd export-json: no PRD root found from cwd", file=sys.stderr)
+            sys.exit(1)
+
+        out_dir = Path(args.out).resolve()
+        counts = export_static(root.prd_dir, out_dir)
+        print(
+            f"Exported {counts['features']} feature(s) and {counts['assets']} asset(s) to {out_dir}"
+        )
         sys.exit(0)
 
     elif args.command == "dashboard":

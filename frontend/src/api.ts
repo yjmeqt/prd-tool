@@ -1,5 +1,6 @@
 import { Feature, IndexPayload } from "./types";
 import { noteOwnWrite } from "./useSse";
+import { IS_READONLY, STATIC_BASE } from "./lib/staticMode";
 
 async function getJson<T>(url: string): Promise<T> {
   const r = await fetch(url);
@@ -36,19 +37,38 @@ export class ApiError extends Error {
   }
 }
 
-export const api = {
-  index: () => getJson<IndexPayload>("/api/index"),
-  feature: (m: string, f: string) => getJson<Feature>(`/api/prd/${m}/${f}`),
-  setRuleStatus: (m: string, f: string, ruleId: string, status: string) =>
-    postJson<Feature>(`/api/prd/${m}/${f}/rule/${encodeURIComponent(ruleId)}/status`, {
-      status,
-    }),
-  setBugStatus: (m: string, f: string, bugId: string, status: string) =>
-    postJson<Feature>(`/api/prd/${m}/${f}/bug/${encodeURIComponent(bugId)}/status`, {
-      status,
-    }),
-  resolveFinding: (m: string, f: string, ruleQid: string) =>
-    postJson<Feature>(`/api/prd/${m}/${f}/finding/${encodeURIComponent(ruleQid)}/resolve`),
-};
+function readOnlyReject<T>(): Promise<T> {
+  return Promise.reject(
+    new ApiError(0, { code: "read_only", message: "Dashboard is in read-only mode" }),
+  );
+}
+
+export const api = IS_READONLY
+  ? {
+      index: () => getJson<IndexPayload>(`${STATIC_BASE}/index.json`),
+      feature: (m: string, f: string) =>
+        getJson<Feature>(
+          `${STATIC_BASE}/prd/${encodeURIComponent(m)}/${encodeURIComponent(f)}.json`,
+        ),
+      setRuleStatus: (_m: string, _f: string, _ruleId: string, _status: string) =>
+        readOnlyReject<Feature>(),
+      setBugStatus: (_m: string, _f: string, _bugId: string, _status: string) =>
+        readOnlyReject<Feature>(),
+      resolveFinding: (_m: string, _f: string, _ruleQid: string) => readOnlyReject<Feature>(),
+    }
+  : {
+      index: () => getJson<IndexPayload>("/api/index"),
+      feature: (m: string, f: string) => getJson<Feature>(`/api/prd/${m}/${f}`),
+      setRuleStatus: (m: string, f: string, ruleId: string, status: string) =>
+        postJson<Feature>(`/api/prd/${m}/${f}/rule/${encodeURIComponent(ruleId)}/status`, {
+          status,
+        }),
+      setBugStatus: (m: string, f: string, bugId: string, status: string) =>
+        postJson<Feature>(`/api/prd/${m}/${f}/bug/${encodeURIComponent(bugId)}/status`, {
+          status,
+        }),
+      resolveFinding: (m: string, f: string, ruleQid: string) =>
+        postJson<Feature>(`/api/prd/${m}/${f}/finding/${encodeURIComponent(ruleQid)}/resolve`),
+    };
 
 export type SseEvent = { type: string; path?: string };

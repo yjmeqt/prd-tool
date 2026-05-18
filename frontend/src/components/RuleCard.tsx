@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Check, X, CircleDashed } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { IS_READONLY } from "@/lib/staticMode";
 
 const RULE_CYCLE: Record<string, string> = { "❌": "⚠️", "⚠️": "✅", "✅": "❌" };
 
@@ -66,21 +67,30 @@ export function RuleCard({
         dimmed && "opacity-60",
       )}
     >
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0 rounded-none border hairline mt-0.5"
-            onClick={onClick}
-            disabled={mut.isPending}
-            aria-label={STATUS_LABEL[rule.status] ?? rule.status}
-          >
-            <StatusGlyph status={rule.status} />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{STATUS_LABEL[rule.status] ?? rule.status}</TooltipContent>
-      </Tooltip>
+      {IS_READONLY ? (
+        <div
+          className="h-6 w-6 shrink-0 rounded-none border hairline mt-0.5 flex items-center justify-center"
+          aria-label={rule.status}
+        >
+          <StatusGlyph status={rule.status} />
+        </div>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 rounded-none border hairline mt-0.5"
+              onClick={onClick}
+              disabled={mut.isPending}
+              aria-label={STATUS_LABEL[rule.status] ?? rule.status}
+            >
+              <StatusGlyph status={rule.status} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{STATUS_LABEL[rule.status] ?? rule.status}</TooltipContent>
+        </Tooltip>
+      )}
 
       <div className="flex-1 min-w-0 text-[15px] leading-relaxed">
         <code className="text-[11px] text-muted-foreground mr-2 font-mono uppercase tracking-wider">
