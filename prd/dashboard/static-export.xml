@@ -1,0 +1,56 @@
+<prd name="Static Read-only Export">
+
+<overview>
+A way to publish the PRD dashboard as a read-only static site (e.g. on GitHub Pages) without running the Python backend. A CLI command writes the same JSON payloads the live server would serve, and the frontend has a static mode in which it reads those payloads instead of calling the API, hides every mutation control, and surfaces a "Read-only" indicator. The feature exists so consumer repos that only want to publish their PRDs to a browsable site (e.g. <code>https://&lt;org&gt;.github.io/&lt;repo&gt;/</code>) can do it with a short CI workflow rather than reimplementing snapshot logic or patching the dashboard.
+</overview>
+<implementation platform="CLI" spec="TBD" />
+<implementation platform="Dashboard" spec="TBD" />
+
+<requirement id="R1" name="export-json CLI command">
+  <description>
+    A new <code>prd export-json &lt;out&gt;</code> subcommand writes the dashboard's data to disk in the same shape the live API serves, so a static host can replace the backend.
+  </description>
+  <rule id="discovers_root" status="✅"><code>prd export-json</code> resolves the PRD root the same way <a href="prd:discovery/root-and-refs">discovery/root-and-refs</a> defines it, and exits non-zero with a clear error if no root is found.</rule>
+  <rule id="writes_index" status="✅">The command writes <code>&lt;out&gt;/index.json</code> whose payload matches what <code>GET /api/index</code> would return for the same PRD root.</rule>
+  <rule id="writes_features" status="✅">For every <code>&lt;module&gt;/&lt;feature&gt;.xml</code> under the PRD root (excluding <code>index.xml</code>), the command writes <code>&lt;out&gt;/prd/&lt;module&gt;/&lt;feature&gt;.json</code> whose payload matches what <code>GET /api/prd/&lt;module&gt;/&lt;feature&gt;</code> would return.</rule>
+  <rule id="copies_assets" status="✅">Every non-XML file under each module directory is copied to <code>&lt;out&gt;/asset/&lt;module&gt;/&lt;relative-path&gt;</code>, preserving directory structure, so images referenced from PRD rich content resolve under the static host.</rule>
+  <rule id="creates_out_dir" status="✅">The output directory is created if it does not exist; existing files in it are overwritten without prompting.</rule>
+  <rule id="prints_summary" status="✅">On success the command prints a one-line summary naming the count of features and assets written and the absolute output path.</rule>
+  <rule id="read_only" status="✅">The command never writes to any file under the PRD root; only the output directory is touched.</rule>
+</requirement>
+
+<requirement id="R2" name="Static frontend mode">
+  <description>
+    When built with the static-export environment variable set, the dashboard fetches its data from the exporter's JSON tree instead of the live API and presents itself as read-only. The behavior of the live, server-backed dashboard described in <a href="prd:dashboard/viewer">dashboard/viewer</a> is unchanged when the variable is unset.
+  </description>
+  <rule id="env_gate" status="✅">Setting <code>VITE_STATIC_BASE</code> at build time switches the dashboard into static mode; leaving it unset keeps the existing live-server behavior. The value of <code>VITE_STATIC_BASE</code> is the URL prefix where the exporter's output is served.</rule>
+  <rule id="fetches_index" status="✅" context="Static mode">The index view fetches <code>&lt;VITE_STATIC_BASE&gt;/index.json</code> instead of <code>/api/index</code>.</rule>
+  <rule id="fetches_feature" status="✅" context="Static mode">The feature detail view fetches <code>&lt;VITE_STATIC_BASE&gt;/prd/&lt;module&gt;/&lt;feature&gt;.json</code> instead of <code>/api/prd/&lt;module&gt;/&lt;feature&gt;</code>.</rule>
+  <rule id="image_rewrite" status="✅" context="Static mode">Relative <code>&lt;img src&gt;</code> values inside PRD rich content rewrite to <code>&lt;VITE_STATIC_BASE&gt;/asset/&lt;module&gt;/&lt;path&gt;</code>; absolute and data URLs pass through unchanged.</rule>
+  <rule id="sse_disabled" status="✅" context="Static mode">The dashboard does not open an <code>EventSource</code>; the "live updates disconnected" banner from the live dashboard never appears.</rule>
+  <rule id="mutations_blocked" status="✅" context="Static mode">The rule, bug, and finding mutation APIs reject with a read-only error if invoked, so any stray call surfaces as a clear failure rather than silently corrupting cache state.</rule>
+</requirement>
+
+<requirement id="R3" name="Read-only UX">
+  <description>
+    In static mode every control that would write back to the PRD is removed and the dashboard makes its read-only state visible.
+  </description>
+  <rule id="hide_rule_toggle" status="✅" context="Static mode">A rule's status glyph is rendered as a static indicator with no click target; the cycle-status button from the live dashboard's <a href="prd:dashboard/viewer#R6">lightweight edits</a> is not shown.</rule>
+  <rule id="hide_bug_cycle" status="✅" context="Static mode">The "advance bug status" button on each bug card is hidden; bugs are still readable with all their fields.</rule>
+  <rule id="hide_finding_resolve" status="✅" context="Static mode">The "Resolve" button on each UI-review finding is hidden; findings are still readable.</rule>
+  <rule id="readonly_badge" status="✅" context="Static mode">The masthead shows a small "Read-only" chip alongside the publication eyebrow, so a visitor immediately understands the site cannot be edited.</rule>
+  <rule id="navigation_intact" status="✅" context="Static mode">Sidebar navigation, feature deep-links, fixed-bug fold, and figma-node chips all behave the same as in the live dashboard.</rule>
+</requirement>
+
+<requirement id="R4" name="GitHub Pages compatibility">
+  <description>
+    The static build is deployable as-is to GitHub Pages, including project pages served under a repository subpath where deep links and asset URLs would otherwise break.
+  </description>
+  <rule id="base_path" status="✅">Setting <code>VITE_BASE</code> at build time scopes every emitted asset URL to that public path, so a site served from <code>https://&lt;org&gt;.github.io/&lt;repo&gt;/</code> resolves its CSS and JS bundles correctly.</rule>
+  <rule id="router_basename" status="✅">React Router's basename is derived from the build's base path, so deep links like <code>/&lt;repo&gt;/p/&lt;module&gt;/&lt;feature&gt;</code> match the feature route instead of falling through to the 404 view.</rule>
+  <rule id="spa_fallback" status="✅" context="Static mode">The build emits a <code>404.html</code> identical to <code>index.html</code> so GitHub Pages' not-found handler boots the SPA and the router takes over from the requested URL.</rule>
+  <rule id="nojekyll" status="✅" context="Static mode">The build emits a <code>.nojekyll</code> marker so Pages' Jekyll layer does not filter any of Vite's output filenames.</rule>
+  <rule id="dist_out_dir" status="✅" context="Static mode">The static build writes to <code>frontend/dist</code> instead of the wheel's bundled <code>static/</code> directory, so a static-host deployment never overwrites the assets the Python package ships.</rule>
+</requirement>
+
+</prd>
