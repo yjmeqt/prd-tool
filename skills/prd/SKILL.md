@@ -193,7 +193,7 @@ Use a `prd:` URI inside `<a href="…">` to link to another PRD.
 
 ```xml
 <rule id="lifecycle_match" status="❌">
-  Lifecycle mirrors <a href="prd:dashboard/viewer#R1">the dashboard's launch rules</a>.
+  Lifecycle mirrors <a href="prd:view/native#R1">the viewer's launch rules</a>.
 </rule>
 ```
 
@@ -204,7 +204,7 @@ Fragment syntax:
 - `prd:<module>/<feature>#R<n>.<rule_id>` — a specific rule
 - `prd:<module>/<feature>#bug.<bug_id>` — a specific bug
 
-The dashboard intercepts `prd:` links and routes client-side. The skill (this loader) does not auto-load referenced PRDs — it lists them in the summary so the user can choose.
+The viewer intercepts `prd:` links and routes client-side (both `prd view` native windows and `prd view --server` browser mode). The skill (this loader) does not auto-load referenced PRDs — it lists them in the summary so the user can choose.
 
 ### Skill behavior when loading a PRD with rich content
 
@@ -216,7 +216,7 @@ When you encounter rich-text fields during Step 2 parsing:
 
 ### Security note
 
-The dashboard renders rich-text HTML without sanitization. Opening an untrusted PRD in the dashboard is equivalent to running its HTML in your browser. Don't open PRDs from outside your trust boundary.
+The viewer renders rich-text HTML without sanitization. Opening an untrusted PRD in `prd view` (native window or `--server` browser mode) is equivalent to running its HTML in a WebKit context. Don't open PRDs from outside your trust boundary.
 
 ## Bug Writing Rules
 
