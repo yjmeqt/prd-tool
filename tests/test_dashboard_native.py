@@ -67,6 +67,13 @@ def test_open_window_without_factory_returns_internal_error(prd_dir: Path) -> No
     assert out["error"]["code"] == "internal"
 
 
+def test_report_log_writes_to_stderr(prd_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    api = JsApi(prd_dir)
+    api.report_log("error", "boom @ assets/x.js:42")
+    captured = capsys.readouterr()
+    assert "[js error] boom @ assets/x.js:42" in captured.err
+
+
 def test_open_window_invokes_factory(prd_dir: Path) -> None:
     api = JsApi(prd_dir)
     calls: list[str | None] = []

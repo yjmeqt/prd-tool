@@ -9,12 +9,49 @@ awkward to handle in the frontend.
 from __future__ import annotations
 
 import contextlib
+import re
 import sys
 import threading
 from pathlib import Path
 from typing import Any
 
 from prd_tool.dashboard.ops import DashboardOps, OpsError
+
+# Injected before </head> of the native HTML. Captures JS runtime errors and
+# unhandled promise rejections and forwards them to JsApi.report_log via the
+# pywebview bridge so they land in the launch log (stderr → per-pid TMPDIR
+# log when detached). Listens in capture phase so resource-load failures
+# (script/link) are caught — those don't bubble. Polls for the bridge to
+# avoid racing the `pywebviewready` event.
+_ERROR_FORWARDER = """<script>(function(){
+  var buf=[];
+  function flush(){
+    if(!(window.pywebview && window.pywebview.api && window.pywebview.api.report_log)) return false;
+    var pending=buf; buf=[];
+    for(var i=0;i<pending.length;i++){
+      try{ window.pywebview.api.report_log(pending[i][0], pending[i][1]); }catch(_){}
+    }
+    return true;
+  }
+  function send(level,msg){ buf.push([level,String(msg)]); flush(); }
+  var pollId=setInterval(function(){ if(flush()) clearInterval(pollId); }, 50);
+  setTimeout(function(){ clearInterval(pollId); }, 10000);
+  window.addEventListener('error', function(e){
+    var t=e.target; var tag=t && t.tagName ? t.tagName.toLowerCase() : '?';
+    var src=t && (t.src||t.href||'');
+    if(src){ send('resource_error', tag+' failed to load: '+src); }
+    else{ send('error', (e.message||'error')+' @ '+(e.filename||'?')+':'+(e.lineno||0)); }
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    var r=e.reason; send('unhandledrejection', r && r.stack ? r.stack : String(r));
+  });
+  var origErr=console.error.bind(console);
+  console.error=function(){
+    try{ send('console_error', Array.from(arguments).map(String).join(' ')); }catch(_){}
+    origErr.apply(null, arguments);
+  };
+})();</script>
+"""
 
 
 def _ok(data: Any) -> dict[str, Any]:
@@ -79,6 +116,16 @@ class JsApi:
         except OpsError as e:
             return _err(e.code, e.message)
 
+    # ---- diagnostics ----
+
+    def report_log(self, level: str, message: str) -> None:
+        """Receive a log line from the JS runtime. Prints to stderr.
+
+        In detached mode stderr is the per-pid log under TMPDIR, so JS
+        errors and unhandled rejections become greppable without devtools.
+        """
+        print(f"[js {level}] {message}", file=sys.stderr, flush=True)
+
     # ---- window control ----
 
     def open_window(self, ref: str | None = None) -> dict[str, Any]:
@@ -123,7 +170,12 @@ def run_native(prd_dir: Path, refs: list[str]) -> None:
     html = html.replace('src="/assets/', 'src="./assets/').replace(
         'href="/assets/', 'href="./assets/'
     )
-    html = html.replace(" crossorigin>", ">").replace(' crossorigin="anonymous"', "")
+    # Strip `crossorigin` and `crossorigin="…"` attributes from any tag.
+    # Vite emits them on the module script and the stylesheet link, but the
+    # exact whitespace/quoting varies, so a regex is more robust than
+    # str.replace.
+    html = re.sub(r'\s+crossorigin(=("[^"]*"|\'[^\']*\'))?', "", html)
+    html = html.replace("</head>", _ERROR_FORWARDER + "  </head>", 1)
     index_html.write_text(html, encoding="utf-8")
 
     windows: list[Any] = []
