@@ -1,6 +1,7 @@
 import { Feature, IndexPayload } from "./types";
 import { noteOwnWrite } from "./useSse";
 import { IS_READONLY, STATIC_BASE } from "./lib/staticMode";
+import { isNative, nativeApi, NativeResult } from "./lib/nativeMode";
 
 async function getJson<T>(url: string): Promise<T> {
   const r = await fetch(url);
@@ -43,32 +44,79 @@ function readOnlyReject<T>(): Promise<T> {
   );
 }
 
-export const api = IS_READONLY
-  ? {
-      index: () => getJson<IndexPayload>(`${STATIC_BASE}/index.json`),
-      feature: (m: string, f: string) =>
-        getJson<Feature>(
-          `${STATIC_BASE}/prd/${encodeURIComponent(m)}/${encodeURIComponent(f)}.json`,
-        ),
-      setRuleStatus: (_m: string, _f: string, _ruleId: string, _status: string) =>
-        readOnlyReject<Feature>(),
-      setBugStatus: (_m: string, _f: string, _bugId: string, _status: string) =>
-        readOnlyReject<Feature>(),
-      resolveFinding: (_m: string, _f: string, _ruleQid: string) => readOnlyReject<Feature>(),
+function unwrap<T>(r: NativeResult<T>): T {
+  if (!r.ok) {
+    throw new ApiError(0, r.error ?? { code: "internal", message: "unknown" });
+  }
+  return r.data as T;
+}
+
+// Dispatch happens at call time, not import time: pywebview injects
+// window.pywebview *after* our ESM modules have evaluated. The api object
+// must keep the same shape (callable methods) so existing call sites work
+// unchanged.
+export const api = {
+  index: async (): Promise<IndexPayload> => {
+    if (isNative()) {
+      return (await nativeApi().index()) as IndexPayload;
     }
-  : {
-      index: () => getJson<IndexPayload>("/api/index"),
-      feature: (m: string, f: string) => getJson<Feature>(`/api/prd/${m}/${f}`),
-      setRuleStatus: (m: string, f: string, ruleId: string, status: string) =>
-        postJson<Feature>(`/api/prd/${m}/${f}/rule/${encodeURIComponent(ruleId)}/status`, {
-          status,
-        }),
-      setBugStatus: (m: string, f: string, bugId: string, status: string) =>
-        postJson<Feature>(`/api/prd/${m}/${f}/bug/${encodeURIComponent(bugId)}/status`, {
-          status,
-        }),
-      resolveFinding: (m: string, f: string, ruleQid: string) =>
-        postJson<Feature>(`/api/prd/${m}/${f}/finding/${encodeURIComponent(ruleQid)}/resolve`),
-    };
+    if (IS_READONLY) {
+      return getJson<IndexPayload>(`${STATIC_BASE}/index.json`);
+    }
+    return getJson<IndexPayload>("/api/index");
+  },
+
+  feature: async (m: string, f: string): Promise<Feature> => {
+    if (isNative()) {
+      return unwrap<Feature>((await nativeApi().feature(m, f)) as NativeResult<Feature>);
+    }
+    if (IS_READONLY) {
+      return getJson<Feature>(
+        `${STATIC_BASE}/prd/${encodeURIComponent(m)}/${encodeURIComponent(f)}.json`,
+      );
+    }
+    return getJson<Feature>(`/api/prd/${m}/${f}`);
+  },
+
+  setRuleStatus: async (m: string, f: string, ruleId: string, status: string): Promise<Feature> => {
+    if (isNative()) {
+      const out = unwrap<Feature>(
+        (await nativeApi().set_rule_status(m, f, ruleId, status)) as NativeResult<Feature>,
+      );
+      noteOwnWrite();
+      return out;
+    }
+    if (IS_READONLY) return readOnlyReject<Feature>();
+    return postJson<Feature>(`/api/prd/${m}/${f}/rule/${encodeURIComponent(ruleId)}/status`, {
+      status,
+    });
+  },
+
+  setBugStatus: async (m: string, f: string, bugId: string, status: string): Promise<Feature> => {
+    if (isNative()) {
+      const out = unwrap<Feature>(
+        (await nativeApi().set_bug_status(m, f, bugId, status)) as NativeResult<Feature>,
+      );
+      noteOwnWrite();
+      return out;
+    }
+    if (IS_READONLY) return readOnlyReject<Feature>();
+    return postJson<Feature>(`/api/prd/${m}/${f}/bug/${encodeURIComponent(bugId)}/status`, {
+      status,
+    });
+  },
+
+  resolveFinding: async (m: string, f: string, ruleQid: string): Promise<Feature> => {
+    if (isNative()) {
+      const out = unwrap<Feature>(
+        (await nativeApi().resolve_finding(m, f, ruleQid)) as NativeResult<Feature>,
+      );
+      noteOwnWrite();
+      return out;
+    }
+    if (IS_READONLY) return readOnlyReject<Feature>();
+    return postJson<Feature>(`/api/prd/${m}/${f}/finding/${encodeURIComponent(ruleQid)}/resolve`);
+  },
+};
 
 export type SseEvent = { type: string; path?: string };

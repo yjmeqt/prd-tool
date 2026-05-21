@@ -21,7 +21,7 @@ A way to publish the PRD dashboard as a read-only static site (e.g. on GitHub Pa
 
 <requirement id="R2" name="Static frontend mode">
   <description>
-    When built with the static-export environment variable set, the dashboard fetches its data from the exporter's JSON tree instead of the live API and presents itself as read-only. The behavior of the live, server-backed dashboard described in <a href="prd:dashboard/viewer">dashboard/viewer</a> is unchanged when the variable is unset.
+    When built with the static-export environment variable set, the dashboard fetches its data from the exporter's JSON tree instead of the live API and presents itself as read-only. The behavior of the live, server-backed dashboard described in <a href="prd:view/native">dashboard/viewer</a> is unchanged when the variable is unset.
   </description>
   <rule id="env_gate" status="✅">Setting <code>VITE_STATIC_BASE</code> at build time switches the dashboard into static mode; leaving it unset keeps the existing live-server behavior. The value of <code>VITE_STATIC_BASE</code> is the URL prefix where the exporter's output is served.</rule>
   <rule id="fetches_index" status="✅" context="Static mode">The index view fetches <code>&lt;VITE_STATIC_BASE&gt;/index.json</code> instead of <code>/api/index</code>.</rule>
@@ -35,7 +35,7 @@ A way to publish the PRD dashboard as a read-only static site (e.g. on GitHub Pa
   <description>
     In static mode every control that would write back to the PRD is removed and the dashboard makes its read-only state visible.
   </description>
-  <rule id="hide_rule_toggle" status="✅" context="Static mode">A rule's status glyph is rendered as a static indicator with no click target; the cycle-status button from the live dashboard's <a href="prd:dashboard/viewer#R6">lightweight edits</a> is not shown.</rule>
+  <rule id="hide_rule_toggle" status="✅" context="Static mode">A rule's status glyph is rendered as a static indicator with no click target; the cycle-status button from the live dashboard's <a href="prd:view/native#R6">lightweight edits</a> is not shown.</rule>
   <rule id="hide_bug_cycle" status="✅" context="Static mode">The "advance bug status" button on each bug card is hidden; bugs are still readable with all their fields.</rule>
   <rule id="hide_finding_resolve" status="✅" context="Static mode">The "Resolve" button on each UI-review finding is hidden; findings are still readable.</rule>
   <rule id="readonly_badge" status="✅" context="Static mode">The masthead shows a small "Read-only" chip alongside the publication eyebrow, so a visitor immediately understands the site cannot be edited.</rule>

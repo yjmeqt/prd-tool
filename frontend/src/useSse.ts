@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { IS_READONLY } from "./lib/staticMode";
+import { isNative } from "./lib/nativeMode";
 
 // Module-level so api.ts can stamp the suppression window without prop-drilling.
 let lastOwnWriteAt = 0;
@@ -14,10 +15,25 @@ export type ConnectionState = "connecting" | "open" | "error" | "disabled";
 
 export function useSseInvalidation(): ConnectionState {
   const qc = useQueryClient();
-  const [state, setState] = useState<ConnectionState>(IS_READONLY ? "disabled" : "connecting");
+  const [state, setState] = useState<ConnectionState>(
+    IS_READONLY ? "disabled" : isNative() ? "open" : "connecting",
+  );
 
   useEffect(() => {
     if (IS_READONLY) return;
+    if (isNative()) {
+      const handler = (e: { type: string; path?: string }) => {
+        if (Date.now() - lastOwnWriteAt < OWN_WRITE_SUPPRESS_MS) return;
+        if (e.type === "prd_changed" || e.type === "index_changed" || e.type === "invalid") {
+          qc.invalidateQueries({ queryKey: ["index"] });
+          qc.invalidateQueries({ queryKey: ["feature"] });
+        }
+      };
+      window.__prdOnFsEvent = handler;
+      return () => {
+        if (window.__prdOnFsEvent === handler) window.__prdOnFsEvent = undefined;
+      };
+    }
     const es = new EventSource("/api/events");
     const invalidate = () => {
       // Coalesce echoes of our own POSTs. The mutation's onSuccess has

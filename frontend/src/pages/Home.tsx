@@ -1,6 +1,17 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type React from "react";
 import { Link } from "react-router-dom";
+import { isNative, nativeApi } from "@/lib/nativeMode";
+
+function onFeatureRowClick(ref: string) {
+  return (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (isNative() && (e.metaKey || e.ctrlKey || e.button === 1)) {
+      e.preventDefault();
+      void nativeApi().open_window(ref);
+    }
+  };
+}
 import { api } from "@/api";
 import { IndexFeature } from "@/types";
 import { useDocumentTitle } from "@/useDocumentTitle";
@@ -203,6 +214,7 @@ export function HomePage() {
                     <td className="px-2 py-4 align-baseline">
                       <Link
                         to={`/p/${f.module}/${f.feature}`}
+                        onClick={onFeatureRowClick(`${f.module}/${f.feature}`)}
                         className="font-display text-xl leading-tight tracking-tight hover:italic transition-all inline-flex items-baseline gap-3"
                       >
                         <span className="font-mono text-[10px] tabular-nums text-muted-foreground/70 not-italic">

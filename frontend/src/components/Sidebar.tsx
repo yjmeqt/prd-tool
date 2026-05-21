@@ -1,10 +1,21 @@
+import type React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
 import { Check } from "lucide-react";
 import { api } from "@/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { isNative, nativeApi } from "@/lib/nativeMode";
 import type { IndexFeature } from "@/types";
+
+function onFeatureNavClick(ref: string) {
+  return (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (isNative() && (e.metaKey || e.ctrlKey || e.button === 1)) {
+      e.preventDefault();
+      void nativeApi().open_window(ref);
+    }
+  };
+}
 
 export function Sidebar() {
   const q = useQuery({ queryKey: ["index"], queryFn: api.index });
@@ -53,6 +64,7 @@ export function Sidebar() {
                     <li key={f.ref}>
                       <NavLink
                         to={`/p/${f.module}/${f.feature}`}
+                        onClick={onFeatureNavClick(`${f.module}/${f.feature}`)}
                         className={({ isActive }) =>
                           cn(
                             "group flex items-center gap-3 px-4 py-1.5 text-[15px] transition-colors relative",

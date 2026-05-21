@@ -26,6 +26,23 @@ describe("rewriteImgSrc", () => {
     const out = rewriteImgSrc('<img src="a folder/b.png"/>', "m", "f");
     expect(out).toContain("/api/prd-asset/m/f/a%20folder/b.png");
   });
+
+  it("rewrites to file:// when native asset root is set", () => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__prdAssetRoot = "/abs/prd";
+    try {
+      const out = rewriteImgSrc('<img src="screenshots/err.png"/>', "content", "rich");
+      expect(out).toContain('src="file:///abs/prd/content/screenshots/err.png"');
+    } finally {
+      delete w.__prdAssetRoot;
+    }
+  });
+
+  it("leaves file:// URLs untouched", () => {
+    expect(rewriteImgSrc('<img src="file:///x/y.png"/>', "m", "f")).toBe(
+      '<img src="file:///x/y.png"/>',
+    );
+  });
 });
 
 describe("parsePrdHref", () => {
