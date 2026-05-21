@@ -22,8 +22,10 @@ def _resolve_or_exit(ref: str) -> Path:
         sys.exit(1)
 
 
+_DETACH_SENTINEL_ENV = "_PRD_VIEW_DETACHED"
+
+
 def _run_native_view(refs: list[str], detach: bool) -> None:
-    from prd_tool.dashboard.native import run_native
     from prd_tool.root import find_root
 
     root = find_root()
@@ -38,42 +40,50 @@ def _run_native_view(refs: list[str], detach: bool) -> None:
         )
         sys.exit(1)
 
-    if detach:
-        _double_fork_or_exit(root.prd_dir)
+    # When --detach (default) is requested and we are not already the detached
+    # child, spawn a fresh subprocess in its own session and exit. Doing this
+    # with subprocess.Popen + start_new_session is reliable on macOS;
+    # os.fork() in a process that may have transitively imported PyObjC/AppKit
+    # corrupts WebKit in the forked child (window opens, JS never runs, blank
+    # white screen).
+    if detach and os.environ.get(_DETACH_SENTINEL_ENV) != "1":
+        _respawn_detached(root.prd_dir)
+        return
+
+    from prd_tool.dashboard.native import run_native
 
     run_native(root.prd_dir, refs)
 
 
-def _double_fork_or_exit(prd_dir: Path) -> None:
-    """Detach from the controlling terminal so `prd view` returns immediately.
-
-    Mirrors the daemonize pattern used by `open` and similar tools: fork once
-    to leave the foreground, become a session leader, fork again so we can't
-    re-acquire a TTY, then redirect stdio to a log file under TMPDIR.
-    """
-    # First fork — parent returns to the shell.
-    if os.fork() > 0:
-        print(f"prd view: launched (PRD root: {prd_dir})")
-        os._exit(0)
-
-    # Become session leader so the child has no controlling terminal.
-    os.setsid()
-
-    # Second fork — prevents the child from acquiring a controlling tty later.
-    if os.fork() > 0:
-        os._exit(0)
-
-    # Redirect stdio to a per-pid log under TMPDIR so crashes are recoverable.
+def _respawn_detached(prd_dir: Path) -> None:
+    """Spawn `prd view --no-detach` as a new session-leader process and exit."""
+    import subprocess
     import tempfile
 
     log_path = Path(tempfile.gettempdir()) / f"prd-view-{os.getpid()}.log"
     log_fd = os.open(str(log_path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    os.dup2(log_fd, sys.stdout.fileno())
-    os.dup2(log_fd, sys.stderr.fileno())
-    devnull = os.open(os.devnull, os.O_RDONLY)
-    os.dup2(devnull, sys.stdin.fileno())
-    os.close(devnull)
-    os.close(log_fd)
+    devnull_fd = os.open(os.devnull, os.O_RDONLY)
+    try:
+        # Re-exec the same `prd` command with --no-detach and a sentinel env
+        # var so the child knows it is the detached worker (and would not
+        # respawn again if --no-detach were stripped by argv munging).
+        env = {**os.environ, _DETACH_SENTINEL_ENV: "1"}
+        new_argv = [a for a in sys.argv if a != "--no-detach"]
+        if "--no-detach" not in new_argv:
+            new_argv = [*new_argv, "--no-detach"]
+        proc = subprocess.Popen(
+            new_argv,
+            env=env,
+            stdin=devnull_fd,
+            stdout=log_fd,
+            stderr=log_fd,
+            start_new_session=True,
+            close_fds=True,
+        )
+    finally:
+        os.close(log_fd)
+        os.close(devnull_fd)
+    print(f"prd view: launched pid={proc.pid} (PRD root: {prd_dir}, log: {log_path})")
 
 
 def _run_server_view(args: argparse.Namespace) -> None:
