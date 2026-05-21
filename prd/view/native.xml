@@ -1,0 +1,197 @@
+<prd name="PRD Viewer (Native)">
+
+<overview>
+A local viewer for browsing and lightly editing PRDs in a repository. The default surface is a native macOS window (pywebview / WKWebView) that reads PRD files straight from disk without binding any network port, supports opening multiple PRDs in separate windows, and behaves like a regular Mac app (window close, Cmd-Tab, full-screen). A legacy server mode behind <code>prd view --server</code> still launches the FastAPI dashboard on loopback for browser-based and remote-viewing use cases. The viewer reads the PRD root the same way the rest of the tool does and reflects changes to PRD files on disk without a manual refresh.
+</overview>
+<implementation platform="CLI" spec="docs/specs/view/cli.md" />
+<implementation platform="Dashboard" spec="docs/specs/dashboard/viewer.md" />
+
+<requirement id="R1" name="Launch and lifecycle">
+  <description>
+    The viewer is started from the CLI inside any directory under a PRD root. By default <code>prd view</code> opens a native window; <code>--server</code> opts into the legacy FastAPI dashboard mode. The legacy <code>prd dashboard</code> command remains as a deprecated alias for one release.
+  </description>
+  <rule id="native_default" status="❌"><code>prd view</code> with no flags opens a native macOS window backed by the local PRD root; no network port is bound, no browser is opened, and no localhost URL is printed.</rule>
+  <rule id="native_no_tty_required" status="❌">The native viewer does not require an interactive terminal; it can be launched from a non-TTY context (double-click, agent harness, app launcher) because closing the last window exits the process — there is no long-lived background server that could orphan.</rule>
+  <rule id="refs_arg" status="❌"><code>prd view &lt;module/feature&gt; [&lt;module/feature&gt; ...]</code> opens one native window per ref; passing no refs opens the index in a single window.</rule>
+  <rule id="no_root_error" status="✅">When no PRD root can be found, <code>prd view</code> exits non-zero with the same error shape as other root-aware commands, naming the markers it searched for.</rule>
+  <rule id="window_close_exits" status="❌">Closing the last open window exits the <code>prd view</code> process cleanly; closing a non-last window leaves the remaining windows running.</rule>
+  <rule id="server_mode_flag" status="❌"><code>prd view --server</code> runs the legacy FastAPI dashboard on a loopback port and opens it in the default browser, preserving the prior <code>prd dashboard</code> behavior including <code>--host</code>, <code>--port</code>, <code>--no-open</code>, and <code>--allow-no-tty</code>.</rule>
+  <rule id="tty_required" status="✅" context="--server only">The server mode only runs when launched from an interactive terminal; when stdin is not a TTY (backgrounded, piped, CI, agent harness, <code>nohup</code>) it exits non-zero with an error explaining that the server requires an attached terminal so the user can stop it with Ctrl+C, preventing orphaned servers.</rule>
+  <rule id="port_override" status="✅" context="--server only"><code>prd view --server --port &lt;n&gt;</code> binds the server to the given port; otherwise a default port is used.</rule>
+  <rule id="shutdown" status="✅" context="--server only">Pressing Ctrl+C in the terminal stops the server and exits cleanly.</rule>
+  <rule id="dashboard_alias_deprecated" status="❌"><code>prd dashboard</code> remains callable as a hidden alias for <code>prd view --server</code> for one release, printing a one-line deprecation notice to stderr. It is omitted from <code>prd --help</code>.</rule>
+</requirement>
+
+<requirement id="R2" name="Navigation sidebar">
+  <description>
+    A persistent sidebar lists every module and feature found under the discovered PRD directory, mirroring the layout shown by <code>prd ls</code>. PRD discovery follows the rules described in <a href="prd:discovery/root-and-refs">discovery/root-and-refs</a>.
+  </description>
+  <rule id="module_tree" status="⚠️">The sidebar groups features by module; each module is collapsible and shows its feature count.</rule>
+  <rule id="feature_entry" status="✅">Each feature in the sidebar shows its display name and links to the feature detail view.</rule>
+  <rule id="active_highlight" status="✅">The currently viewed feature is visually highlighted in the sidebar.</rule>
+  <rule id="empty_state" status="✅">When the PRD directory contains no features, the sidebar shows a short message explaining how to add one.</rule>
+</requirement>
+
+<requirement id="R3" name="Status rollup home">
+  <description>
+    The landing view of the viewer presents a single table summarizing the health of every PRD in the repository.
+  </description>
+  <rule id="rollup_table" status="✅">The home view shows one row per feature with: module, feature name, rules done / total, open bug count, and UI-review status. <img src="screenshots/rollup-strip.png" alt="Rollup strip placeholder"/></rule>
+  <rule id="rollup_counts_match_stats" status="✅">The counts shown in the table match what <code>prd stats prd/index.xml</code> reports for the same files.</rule>
+  <rule id="rollup_sort" status="✅">Columns can be sorted; the default sort surfaces features with open bugs or unfinished rules first.</rule>
+  <rule id="rollup_click_through" status="✅">Clicking a row opens that feature's detail view.</rule>
+</requirement>
+
+<requirement id="R4" name="Feature detail view">
+  <description>
+    Selecting a feature shows everything the PRD says about it: overview, implementation entries, requirements with their rules, bugs, and UI-review findings.
+  </description>
+  <rule id="overview_block" status="✅">The detail view shows the feature name, status rollup, and the overview text at the top.</rule>
+  <rule id="implementation_list" status="✅">Each <code>&lt;implementation&gt;</code> entry is shown with its platform and spec path; a missing or TBD spec is visually marked as such.</rule>
+  <rule id="requirements_section" status="✅">Each requirement is rendered as a card with its title, description, and a list of rules; each rule shows its status icon and any <code>context</code> attribute.</rule>
+  <rule id="ui_review_section" status="✅">When a requirement has a <code>&lt;ui_review&gt;</code> element, its status, date, and findings are shown alongside the rules they reference.</rule>
+  <rule id="bugs_section" status="✅">Open and Fix-Pending bugs are shown above Fixed bugs; each bug shows its id, status, date, the rule it references, and its current/expected/steps text.</rule>
+  <rule id="fixed_bugs_folded" status="✅">Fixed bugs are collapsed to a one-line summary (id, date, rule reference) by default; the user can expand any Fixed bug to see its current/expected/steps text. Open and Fix-Pending bugs remain expanded by default so active work stays in view.</rule>
+</requirement>
+
+<requirement id="R5" name="Figma references">
+  <description>
+    Every <code>&lt;figma_node&gt;</code> referenced by a rule is surfaced as a link that opens the node in Figma. The viewer does not fetch images from Figma — there is no API token to configure and no thumbnails to render.
+  </description>
+  <rule id="figma_link" status="✅">A <code>&lt;figma_node&gt;</code> attached to a rule renders as a small chip showing the node's <code>name</code> and opens the node in Figma when clicked; in native mode the link is handed off to the system default browser rather than navigating inside the window.</rule>
+  <rule id="figma_node_id" status="✅">The link is built from the node's <code>file</code> and <code>node</code> attributes, converting the <code>-</code> separator in the node id to <code>:</code> so Figma resolves it.</rule>
+  <rule id="figma_no_remote_calls" status="✅">The viewer never contacts Figma's API or downloads images; opening the link is the only network call, and it happens in the system browser, not from any backend.</rule>
+</requirement>
+
+<requirement id="R6" name="Lightweight edits">
+  <description>
+    The viewer can toggle a small set of statuses on the underlying XML so reviewers can act on what they see without switching to an editor. Larger structural edits remain the responsibility of the XML files and the existing CLI commands.
+  </description>
+  <rule id="rule_status_toggle" status="✅">A rule's status can be cycled between ❌, ⚠️, and ✅ from the rule card; the change is persisted to the XML file on disk.</rule>
+  <rule id="bug_status_cycle" status="✅">A bug's status can be advanced through the Open → Fix Pending → Fixed lifecycle from the bug card; transitions follow the lifecycle described in the PRD skill.</rule>
+  <rule id="bug_status_revert" status="❌">A bug whose status is Fix Pending or Fixed can be reverted directly back to Open from the bug card, so a regression discovered after marking the bug fixed does not require hand-editing the XML. The revert action is distinct from the forward cycle and is clearly labelled (e.g. "Reopen").</rule>
+  <rule id="finding_resolve" status="✅">A UI-review finding can be marked resolved; when the last finding of a <code>&lt;ui_review&gt;</code> is resolved its overall status becomes ✅.</rule>
+  <rule id="edits_validated" status="✅">Every persisted edit leaves the file passing <code>prd validate</code>; if validation would fail the edit is rejected and the user is shown why.</rule>
+  <rule id="edits_formatted" status="✅">Persisted edits leave the file formatted as <code>prd format</code> would format it, so viewer edits do not produce noisy diffs.</rule>
+  <rule id="edits_native_bridge" status="❌" context="Native mode">Edit operations in native mode are dispatched through the pywebview JS bridge (no HTTP); failures and validation errors are surfaced to the UI through a structured <code>{ok:false, error:{code,message}}</code> envelope identical to what server mode would return as an HTTP error body.</rule>
+</requirement>
+
+<requirement id="R7" name="Live reflection of disk changes">
+  <description>
+    The viewer treats the XML files on disk as the source of truth; edits made in an editor outside the viewer show up without a manual refresh, in both native and server modes.
+  </description>
+  <rule id="watch_prd_dir" status="✅">When a PRD file under the discovered PRD directory is created, modified, or deleted, any view that depends on it updates without the user reloading the page.</rule>
+  <rule id="index_refresh" status="⚠️">Adding or removing a feature file updates the sidebar and the status rollup live.</rule>
+  <rule id="invalid_xml_banner" status="⚠️" context="A watched file becomes invalid XML">The affected view shows a non-blocking banner explaining that the file failed to parse, while other features remain browsable.</rule>
+  <rule id="native_fs_events_via_bridge" status="❌" context="Native mode">Filesystem changes are delivered to every open window through the pywebview bridge (no <code>EventSource</code>, no HTTP); the same React Query invalidations that fire under SSE fire under the bridge.</rule>
+</requirement>
+
+<requirement id="R8" name="Packaging">
+  <description>
+    Installing <code>prd-tool</code> is enough to use the viewer in both native and server modes; no extra extras, plugins, or system packages are required for end users on macOS.
+  </description>
+  <rule id="bundled_assets" status="✅">A user who installs <code>prd-tool</code> from a published wheel can run <code>prd view</code> with no additional install step.</rule>
+  <rule id="single_install_no_extra" status="❌"><code>pip install prd-tool</code> (no extras) installs everything needed for the native viewer; there is no <code>prd-tool[gui]</code> opt-in install. The <code>pywebview</code> dependency is declared in the project's required dependencies, not in an optional extra.</rule>
+  <rule id="dev_mode_flag" status="❌">Contributors editing the frontend can run <code>prd view --server --dev</code> to source assets from a local dev server instead of the bundled build.</rule>
+  <rule id="ci_builds_frontend" status="❌">The published wheel includes a pre-built copy of the frontend assets, produced by CI before publish.</rule>
+</requirement>
+
+<requirement id="R9" name="Theme follows the operating system">
+  <description>
+    The viewer always reflects the user's operating-system color scheme — light when the OS is light, dark when the OS is dark. There is no in-app toggle and no remembered preference; the viewer is a passive mirror of the system setting.
+  </description>
+  <rule id="theme_follows_system" status="✅">On load, the viewer renders in light mode when the operating system reports a light color scheme and in dark mode when the OS reports dark.</rule>
+  <rule id="theme_live_switch" status="✅">When the operating-system color scheme changes while the viewer is open, the viewer switches without requiring a reload.</rule>
+  <rule id="theme_no_user_control" status="✅">The viewer does not expose a theme toggle or remember a per-user override; the only source of truth is the OS preference.</rule>
+  <rule id="theme_readable_in_dark" status="✅">Every screen — status rollup, feature detail, bug cards, UI review callouts, Figma chips, banners, toasts — remains legible with sufficient contrast in dark mode.</rule>
+  <rule id="theme_status_colors_distinct" status="✅">The three rule-status glyphs (done / partial / missing) and the bug-status badges (Open / Fix Pending / Fixed) remain visually distinct in both themes.</rule>
+</requirement>
+
+<requirement id="R10" name="Show only unfinished">
+  <description>
+    A quick toggle filters the current view down to items that still need attention — rules whose status is not ✅ and bugs whose status is not Fixed — so a reviewer can scan what is left without scrolling past completed work.
+  </description>
+  <rule id="toggle_control" status="✅">The feature detail view exposes a single, persistent "Show only unfinished" toggle near the top of the view; its on/off state is obvious at a glance.</rule>
+  <rule id="filters_rules" status="✅" context="toggle on">Every rule whose status is ✅ is hidden from each requirement card; rules with status ❌ or ⚠️ remain visible. A requirement card whose rules are all ✅ collapses to a one-line summary instead of disappearing, so the requirement is still discoverable.</rule>
+  <rule id="filters_bugs" status="✅" context="toggle on">Bugs whose status is Fixed are hidden from the bugs section; Open and Fix-Pending bugs remain visible.</rule>
+  <rule id="toggle_persists" status="✅">The toggle state persists across navigation within the viewer session, so switching between features does not reset the filter.</rule>
+  <rule id="rollup_toggle" status="✅">The status rollup home view exposes the same toggle; when on, rows whose rules are all ✅ and have zero open or fix-pending bugs are hidden from the table.</rule>
+</requirement>
+
+<requirement id="R11" name="Sidebar status indicators">
+  <description>
+    Each feature entry in the navigation sidebar surfaces a compact at-a-glance status — its rules-done progress and its open bug count — so a reviewer can see where work remains without opening every feature.
+  </description>
+  <rule id="progress_indicator" status="✅">Each feature entry in the sidebar shows a compact progress indicator reporting how many of its rules are ✅ out of the total (e.g. "7/10").</rule>
+  <rule id="bug_count_badge" status="✅">Each feature entry shows a badge with the number of bugs whose status is Open or Fix Pending; the badge is hidden when that count is zero.</rule>
+  <rule id="indicators_match_stats" status="✅">The progress and bug-count values shown next to each feature match what <code>prd stats</code> reports for the same file, and match the corresponding row in the status rollup home view.</rule>
+  <rule id="indicators_complete_state" status="✅" context="all rules ✅ and zero Open/Fix-Pending bugs">A feature with no remaining work is visually distinct from features that still have unfinished rules or active bugs (e.g. a muted check or "done" treatment in place of the progress fraction).</rule>
+  <rule id="indicators_live_update" status="✅">When a rule status or bug status changes on disk, the affected feature's sidebar indicators update without requiring a reload, consistent with the live-reflection behavior in R7.</rule>
+</requirement>
+
+<requirement id="R12" name="Multi-window (native)">
+  <description>
+    The native viewer supports opening multiple PRDs in independent macOS windows so a reviewer can read or compare features side by side without losing scroll position or filter state.
+  </description>
+  <rule id="multi_window_cli" status="❌"><code>prd view a/b c/d</code> opens two separate windows up front, one per ref; window order matches argument order.</rule>
+  <rule id="multi_window_cmd_click" status="❌">Cmd-click (or middle-click) on a feature link in the sidebar or rollup opens that feature in a new native window instead of navigating within the current window.</rule>
+  <rule id="multi_window_independent_state" status="❌">Each window keeps its own navigation, "show only unfinished" toggle, and Fixed-bug fold state; closing one window does not affect the others.</rule>
+  <rule id="multi_window_shared_writes" status="❌">An edit persisted from one window is reflected in every other open window (and in the sidebar of every window) through the same fs-event bridge described in R7, so two windows showing the same feature do not drift.</rule>
+</requirement>
+
+<requirement id="R13" name="Filesystem-only operation (native)">
+  <description>
+    In native mode the viewer reads and writes PRD files directly from the local filesystem; there is no HTTP server, no localhost port, and no SSE connection. Assets referenced from rich content load through <code>file://</code> URLs that the WKWebView resolves locally.
+  </description>
+  <rule id="no_http_server" status="❌">The native viewer process binds no TCP or unix socket; <code>lsof</code> and <code>netstat</code> show no listening ports owned by it. <code>prd view --server</code> is the only mode that opens a port.</rule>
+  <rule id="js_bridge_api_surface" status="❌">The pywebview JS bridge exposes index read, feature read, asset-root query, rule-status set, bug-status set, finding-resolve, and open-window operations to the frontend; the surface covers every operation the live FastAPI dashboard exposes for the frontend's needs.</rule>
+  <rule id="assets_via_file_url" status="❌">Relative <code>&lt;img src&gt;</code> values inside PRD rich content rewrite to <code>file://&lt;prd-root&gt;/&lt;module&gt;/&lt;path&gt;</code> in native mode, so images render without an HTTP fetch; absolute and data URLs pass through unchanged.</rule>
+  <rule id="hash_router_native" status="❌">React Router uses <code>HashRouter</code> in native mode so deep links (passed on the command line or opened in new windows) resolve correctly under <code>file://</code> without requiring an SPA-fallback route.</rule>
+  <rule id="bridge_error_envelope" status="❌">Every mutating bridge call returns a structured envelope of the form <code>{ok:true, data}</code> or <code>{ok:false, error:{code,message}}</code> with the same <code>code</code> values the FastAPI mode uses (<code>not_found</code>, <code>invalid</code>, <code>validation_failed</code>, <code>parse_error</code>, <code>conflict</code>), so the frontend's error handling is shared between transports.</rule>
+</requirement>
+
+<bug id="sidebar_stays_light_in_dark_mode" status="Fixed" date="2026-05-16" rule="R9.theme_readable_in_dark">
+  <current>
+    When the operating system switches to dark mode (or starts in dark mode), the sidebar — including its background, the per-module headers, and the inactive feature links — remains light. The rest of the dashboard (main content area, cards, banners, badges) renders dark correctly, so the sidebar looks visibly out of place against the dark main panel.
+  </current>
+  <expected>
+    The sidebar follows the system theme like every other part of the dashboard. In dark mode the sidebar has a dark background, light foreground text, and dark-appropriate borders and hover states.
+  </expected>
+  <steps>
+    1. Set the operating system to Dark appearance.
+    2. Open the dashboard.
+    3. Observe: the main content area is dark, but the entire left sidebar (logo block, module headers, feature links) is still light.
+  </steps>
+</bug>
+
+<bug id="sidebar_active_progress_wrong" status="Fix Pending" date="2026-05-16" rule="R11.indicators_match_stats">
+  <current>
+    In the left navigation sidebar, the progress indicator next to the currently-active feature (the row highlighted because the user is viewing it) shows a value that does not match the rule completion state of that PRD. The mismatch is between what the sidebar shows for the active feature and what the feature's own page header / <code>prd stats</code> reports for the same file.
+  </current>
+  <expected>
+    The sidebar's progress fraction (and active-bug badge, if any) next to the active feature always equals what <code>prd stats</code> reports for that PRD file, and matches the rules counter shown in the feature page header. The active row gets the same accurate indicators as any other row — being highlighted as the current position should not change what the values say.
+  </expected>
+  <steps>
+    1. Run <code>prd view --server</code> (or the legacy <code>prd dashboard</code>) and open any feature that has a mix of ✅ and ❌ rules.
+    2. Note the rules fraction shown in the feature page header (e.g. "7/10").
+    3. Look at the same feature's row in the left sidebar — it is highlighted as the active position.
+    4. Observe: the progress fraction shown next to the active feature in the sidebar does not match the page header (and does not match <code>prd stats prd/&lt;module&gt;/&lt;feature&gt;.xml</code> for the same file).
+  </steps>
+</bug>
+
+<bug id="orphan_server_outlives_terminal" status="Fixed" date="2026-05-16" rule="R1.tty_required">
+  <current>
+    The TTY gate only checks at launch time. If the user starts <code>prd dashboard</code> from a real terminal and later closes that terminal window (or the shell exits) without pressing Ctrl+C, the python server is reparented and keeps running in the background, holding the port. The next <code>prd dashboard</code> invocation fails with "cannot bind 127.0.0.1:8765 (Address already in use)" and the only recovery is to find and <code>kill</code> the orphan PID by hand.
+  </current>
+  <expected>
+    A <code>prd dashboard</code> process should not outlive the terminal it was launched from. When the controlling terminal goes away (SIGHUP, parent shell exits, terminal window closed), the server shuts down cleanly and releases the port — so the rule's stated promise of "preventing orphaned servers" actually holds, not just for headless launches but for the close-the-window case too.
+  </expected>
+  <steps>
+    1. Run <code>prd dashboard</code> from a terminal window.
+    2. Close the terminal window (or quit the shell) without pressing Ctrl+C first.
+    3. Open a new terminal and run <code>prd dashboard</code> again.
+    4. Observe: it fails with "cannot bind 127.0.0.1:8765 (Address already in use)"; <code>lsof -ti:8765</code> shows the previous run's python process still alive.
+  </steps>
+</bug>
+
+</prd>

@@ -1,4 +1,4 @@
-"""FastAPI app factory for the PRD dashboard."""
+"""FastAPI app factory for the PRD dashboard (server mode)."""
 
 from __future__ import annotations
 
@@ -9,13 +9,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from prd_tool.dashboard.edits import (
-    EditError,
-    resolve_finding,
-    set_bug_status,
-    set_rule_status,
-)
-from prd_tool.dashboard.repo import FeatureRef, build_index, load_feature
+from prd_tool.dashboard.ops import DashboardOps, OpsError
 from prd_tool.dashboard.sse import sse_stream
 
 _PLACEHOLDER_HTML = """<!doctype html>
@@ -31,19 +25,31 @@ _PLACEHOLDER_HTML = """<!doctype html>
 """
 
 
+def _ops_error_to_http(err: OpsError) -> HTTPException:
+    status = {
+        "not_found": 404,
+        "invalid": 400,
+        "validation_failed": 422,
+        "parse_error": 422,
+        "conflict": 409,
+    }.get(err.code, 500)
+    return HTTPException(status_code=status, detail={"code": err.code, "message": err.message})
+
+
 def create_app(prd_dir: Path) -> FastAPI:
     app = FastAPI(title="prd-tool dashboard")
+    ops = DashboardOps(prd_dir)
 
     @app.get("/api/index")
     def get_index() -> dict[str, Any]:
-        return build_index(prd_dir)
+        return ops.index()
 
     @app.get("/api/prd/{module}/{feature}")
     def get_prd(module: str, feature: str) -> dict[str, Any]:
-        payload = load_feature(prd_dir, FeatureRef(module=module, feature=feature))
-        if payload is None:
-            raise HTTPException(status_code=404, detail=f"PRD not found: {module}/{feature}")
-        return payload
+        try:
+            return ops.feature(module, feature)
+        except OpsError as e:
+            raise _ops_error_to_http(e) from e
 
     @app.get("/api/health")
     def health() -> dict[str, Any]:
@@ -51,36 +57,11 @@ def create_app(prd_dir: Path) -> FastAPI:
 
     @app.get("/api/prd-asset/{module}/{feature}/{asset_path:path}")
     def get_prd_asset(module: str, feature: str, asset_path: str) -> FileResponse:
-        # asset_path is resolved against prd_dir/<module>/. The feature segment
-        # in the URL is informational (it scopes assets to a feature in clients),
-        # but on disk every asset under the module dir is reachable.
-        module_root = (prd_dir / module).resolve()
-        if not module_root.is_dir():
-            raise HTTPException(status_code=404, detail="module not found")
-        target = (module_root / asset_path).resolve()
         try:
-            target.relative_to(module_root)
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail="asset path escapes module") from e
-        if not target.is_file():
-            raise HTTPException(status_code=404, detail="asset not found")
+            target = ops.asset_path(module, feature, asset_path)
+        except OpsError as e:
+            raise _ops_error_to_http(e) from e
         return FileResponse(target)
-
-    def _resolve_prd_path(module: str, feature: str) -> Path:
-        path = prd_dir / module / f"{feature}.xml"
-        if not path.is_file():
-            raise HTTPException(status_code=404, detail=f"PRD not found: {module}/{feature}")
-        return path
-
-    def _edit_error_to_http(err: EditError) -> HTTPException:
-        status = {
-            "not_found": 404,
-            "invalid": 400,
-            "validation_failed": 422,
-            "parse_error": 422,
-            "conflict": 409,
-        }.get(err.code, 500)
-        return HTTPException(status_code=status, detail={"code": err.code, "message": err.message})
 
     @app.post("/api/prd/{module}/{feature}/rule/{rule_id}/status")
     def post_rule_status(
@@ -89,15 +70,10 @@ def create_app(prd_dir: Path) -> FastAPI:
         rule_id: str,
         body: Annotated[dict[str, str], Body()],
     ) -> dict[str, Any]:
-        path = _resolve_prd_path(module, feature)
-        status = body.get("status", "")
         try:
-            set_rule_status(path, rule_id, status)
-        except EditError as e:
-            raise _edit_error_to_http(e) from e
-        payload = load_feature(prd_dir, FeatureRef(module=module, feature=feature))
-        assert payload is not None
-        return payload
+            return ops.set_rule_status(module, feature, rule_id, body.get("status", ""))
+        except OpsError as e:
+            raise _ops_error_to_http(e) from e
 
     @app.post("/api/prd/{module}/{feature}/bug/{bug_id}/status")
     def post_bug_status(
@@ -106,26 +82,17 @@ def create_app(prd_dir: Path) -> FastAPI:
         bug_id: str,
         body: Annotated[dict[str, str], Body()],
     ) -> dict[str, Any]:
-        path = _resolve_prd_path(module, feature)
-        status = body.get("status", "")
         try:
-            set_bug_status(path, bug_id, status)
-        except EditError as e:
-            raise _edit_error_to_http(e) from e
-        payload = load_feature(prd_dir, FeatureRef(module=module, feature=feature))
-        assert payload is not None
-        return payload
+            return ops.set_bug_status(module, feature, bug_id, body.get("status", ""))
+        except OpsError as e:
+            raise _ops_error_to_http(e) from e
 
     @app.post("/api/prd/{module}/{feature}/finding/{rule_qid}/resolve")
     def post_finding_resolve(module: str, feature: str, rule_qid: str) -> dict[str, Any]:
-        path = _resolve_prd_path(module, feature)
         try:
-            resolve_finding(path, rule_qid)
-        except EditError as e:
-            raise _edit_error_to_http(e) from e
-        payload = load_feature(prd_dir, FeatureRef(module=module, feature=feature))
-        assert payload is not None
-        return payload
+            return ops.resolve_finding(module, feature, rule_qid)
+        except OpsError as e:
+            raise _ops_error_to_http(e) from e
 
     @app.get("/api/events")
     def events() -> StreamingResponse:

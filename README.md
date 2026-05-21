@@ -62,6 +62,30 @@ prd stats    prd/index.xml   # roll up across all entries
 
 `stats` is read-only and never writes back.
 
+## Viewing PRDs
+
+`prd view` opens a native macOS window backed by your local PRD files. No HTTP
+server, no localhost, no browser.
+
+```bash
+prd view                   # open the index
+prd view content/rich      # open one PRD in a window
+prd view content/rich a/b  # open two windows at once
+```
+
+Cmd-click any feature in the sidebar or the rollup to open it in a new native
+window. Edits made in any window are reflected across the others and persisted
+to disk.
+
+If you'd rather use a browser (e.g. for remote viewing or screen-sharing):
+
+```bash
+prd view --server          # FastAPI on http://127.0.0.1:8765
+```
+
+`prd dashboard` is a deprecated alias for `prd view --server` and will be
+removed in a future release.
+
 ## PRD file shape
 
 See [`skills/prd/SKILL.md`](skills/prd/SKILL.md) for the full XML schema, requirement/rule/bug/ui-review writing rules, and the load workflow.

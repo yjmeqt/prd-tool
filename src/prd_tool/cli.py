@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -19,6 +20,175 @@ def _resolve_or_exit(ref: str) -> Path:
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
         sys.exit(1)
+
+
+def _run_native_view(refs: list[str], detach: bool) -> None:
+    from prd_tool.dashboard.native import run_native
+    from prd_tool.root import find_root
+
+    root = find_root()
+    if root is None:
+        cwd = Path.cwd().resolve()
+        print(
+            "prd view: not a PRD repo\n"
+            f"  searched upward from: {cwd}\n"
+            "  looking for:          .prd-tool.toml  (preferred)\n"
+            "                        prd/index.xml   (convention)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if detach:
+        _double_fork_or_exit(root.prd_dir)
+
+    run_native(root.prd_dir, refs)
+
+
+def _double_fork_or_exit(prd_dir: Path) -> None:
+    """Detach from the controlling terminal so `prd view` returns immediately.
+
+    Mirrors the daemonize pattern used by `open` and similar tools: fork once
+    to leave the foreground, become a session leader, fork again so we can't
+    re-acquire a TTY, then redirect stdio to a log file under TMPDIR.
+    """
+    # First fork — parent returns to the shell.
+    if os.fork() > 0:
+        print(f"prd view: launched (PRD root: {prd_dir})")
+        os._exit(0)
+
+    # Become session leader so the child has no controlling terminal.
+    os.setsid()
+
+    # Second fork — prevents the child from acquiring a controlling tty later.
+    if os.fork() > 0:
+        os._exit(0)
+
+    # Redirect stdio to a per-pid log under TMPDIR so crashes are recoverable.
+    import tempfile
+
+    log_path = Path(tempfile.gettempdir()) / f"prd-view-{os.getpid()}.log"
+    log_fd = os.open(str(log_path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    os.dup2(log_fd, sys.stdout.fileno())
+    os.dup2(log_fd, sys.stderr.fileno())
+    devnull = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(devnull, sys.stdin.fileno())
+    os.close(devnull)
+    os.close(log_fd)
+
+
+def _run_server_view(args: argparse.Namespace) -> None:
+    allow_no_tty = args.allow_no_tty or os.environ.get(
+        "PRD_DASHBOARD_ALLOW_NO_TTY", ""
+    ).lower() in ("1", "true", "yes")
+    if not sys.stdin.isatty() and not allow_no_tty:
+        print(
+            "prd view --server: refusing to start without an interactive terminal.\n"
+            "  The server runs until you stop it with Ctrl+C, so it needs a TTY\n"
+            "  attached to stdin. Detected: stdin is not a TTY (backgrounded,\n"
+            "  piped, nohup, CI, or agent harness).\n"
+            "\n"
+            "  Run `prd view --server` directly in your shell.\n"
+            "  If you really need to run under a process supervisor, pass\n"
+            "  --allow-no-tty or set PRD_DASHBOARD_ALLOW_NO_TTY=1 — but make\n"
+            "  sure something is responsible for stopping the server.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    from prd_tool.root import find_root
+
+    root = find_root()
+    if root is None:
+        cwd = Path.cwd().resolve()
+        print(
+            "prd view --server: not a PRD repo\n"
+            f"  searched upward from: {cwd}\n"
+            "  looking for:          .prd-tool.toml  (preferred)\n"
+            "                        prd/index.xml   (convention)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    import socket
+
+    import uvicorn
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind((args.host, args.port))
+        except OSError as e:
+            print(
+                f"prd view --server: cannot bind {args.host}:{args.port} ({e.strerror}).\n"
+                "  Another process is probably using the port. Try `--port <n>`\n"
+                "  with a different number, or stop the other process.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    finally:
+        probe.close()
+
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        print(
+            f"prd view --server: warning: binding {args.host} exposes the dashboard\n"
+            "  on the network with no authentication. Use 127.0.0.1 unless you\n"
+            "  understand the risks.",
+            file=sys.stderr,
+        )
+
+    from prd_tool.dashboard.server import create_app
+
+    app = create_app(root.prd_dir)
+
+    url = f"http://{args.host}:{args.port}"
+    print(f"Dashboard at {url}  (PRD root: {root.prd_dir})")
+    print("Press Ctrl+C to stop.")
+
+    if not args.no_open:
+        import threading
+        import webbrowser
+
+        def _open_when_ready() -> None:
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.2)
+                    try:
+                        s.connect((args.host, args.port))
+                        webbrowser.open(url)
+                        return
+                    except OSError:
+                        time.sleep(0.1)
+
+        threading.Thread(target=_open_when_ready, daemon=True).start()
+
+    # Don't outlive the terminal that launched us. If SIGHUP arrives (the
+    # shell's controlling terminal went away) or we get reparented to init
+    # (PID 1, i.e. our parent shell died without forwarding SIGHUP), shut
+    # down by raising SIGINT against ourselves — uvicorn handles SIGINT.
+    import signal as _signal
+    import threading as _threading
+
+    def _request_shutdown() -> None:
+        os.kill(os.getpid(), _signal.SIGINT)
+
+    if hasattr(_signal, "SIGHUP"):
+        _signal.signal(_signal.SIGHUP, lambda *_a: _request_shutdown())
+
+    _orig_ppid = os.getppid()
+
+    def _watch_parent() -> None:
+        while True:
+            time.sleep(2.0)
+            ppid = os.getppid()
+            if ppid == 1 or ppid != _orig_ppid:
+                _request_shutdown()
+                return
+
+    _threading.Thread(target=_watch_parent, daemon=True).start()
+
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
 def main() -> None:
@@ -73,19 +243,49 @@ def main() -> None:
         help="Output directory; will contain index.json, prd/<m>/<f>.json, asset/<m>/...",
     )
 
-    dash_parser = sub.add_parser("dashboard", help="Launch the local PRD dashboard")
-    dash_parser.add_argument(
-        "--host", default="127.0.0.1", help="Host to bind (default: 127.0.0.1)"
+    view_parser = sub.add_parser("view", help="Open the PRD viewer")
+    view_parser.add_argument(
+        "refs",
+        nargs="*",
+        help="Optional list of <module>/<feature> refs to open in separate windows. "
+        "If empty, opens the index.",
     )
-    dash_parser.add_argument("--port", type=int, default=8765, help="Port to bind (default: 8765)")
-    dash_parser.add_argument(
-        "--no-open", action="store_true", help="Do not open the dashboard in a browser"
+    view_parser.add_argument(
+        "--server",
+        action="store_true",
+        help="Run the FastAPI dashboard on http://127.0.0.1:<port> instead of a native window.",
     )
-    dash_parser.add_argument(
+    view_parser.add_argument(
+        "--no-detach",
+        action="store_true",
+        help="(native only) Keep the launcher attached to the terminal so logs and "
+        "crashes print to stdout. Default: detach like `open` so the shell returns "
+        "immediately.",
+    )
+    view_parser.add_argument(
+        "--host", default="127.0.0.1", help="(--server only) Host to bind (default: 127.0.0.1)"
+    )
+    view_parser.add_argument(
+        "--port", type=int, default=8765, help="(--server only) Port to bind (default: 8765)"
+    )
+    view_parser.add_argument(
+        "--no-open",
+        action="store_true",
+        help="(--server only) Do not open the dashboard in a browser",
+    )
+    view_parser.add_argument(
         "--allow-no-tty",
         action="store_true",
-        help="Override the interactive-terminal requirement (also: PRD_DASHBOARD_ALLOW_NO_TTY=1)",
+        help="(--server only) Override the interactive-terminal requirement "
+        "(also: PRD_DASHBOARD_ALLOW_NO_TTY=1)",
     )
+
+    # Hidden deprecated alias for one release.
+    dash_alias = sub.add_parser("dashboard", help=argparse.SUPPRESS)
+    dash_alias.add_argument("--host", default="127.0.0.1")
+    dash_alias.add_argument("--port", type=int, default=8765)
+    dash_alias.add_argument("--no-open", action="store_true")
+    dash_alias.add_argument("--allow-no-tty", action="store_true")
 
     args = parser.parse_args()
 
@@ -180,7 +380,6 @@ def main() -> None:
                 try:
                     sub_root = ET.parse(xml).getroot()
                 except (ET.ParseError, OSError):
-                    # Treat unparseable files as unfinished so they remain visible.
                     refs.append(str(rel.with_suffix("")))
                     continue
                 if sub_root.tag != "prd" or not has_unfinished_work(sub_root):
@@ -206,119 +405,18 @@ def main() -> None:
         )
         sys.exit(0)
 
-    elif args.command == "dashboard":
-        import os
-
-        allow_no_tty = args.allow_no_tty or os.environ.get(
-            "PRD_DASHBOARD_ALLOW_NO_TTY", ""
-        ).lower() in ("1", "true", "yes")
-        if not sys.stdin.isatty() and not allow_no_tty:
+    elif args.command in ("view", "dashboard"):
+        if args.command == "dashboard":
             print(
-                "prd dashboard: refusing to start without an interactive terminal.\n"
-                "  The server runs until you stop it with Ctrl+C, so it needs a TTY\n"
-                "  attached to stdin. Detected: stdin is not a TTY (backgrounded,\n"
-                "  piped, nohup, CI, or agent harness).\n"
-                "\n"
-                "  Run `prd dashboard` directly in your shell.\n"
-                "  If you really need to run under a process supervisor, pass\n"
-                "  --allow-no-tty or set PRD_DASHBOARD_ALLOW_NO_TTY=1 — but make\n"
-                "  sure something is responsible for stopping the server.",
+                "prd dashboard: deprecated — use `prd view --server` instead.",
                 file=sys.stderr,
             )
-            sys.exit(1)
+            _run_server_view(args)
+            sys.exit(0)
 
-        from prd_tool.root import find_root
+        if args.server:
+            _run_server_view(args)
+            sys.exit(0)
 
-        root = find_root()
-        if root is None:
-            cwd = Path.cwd().resolve()
-            print(
-                "prd dashboard: not a PRD repo\n"
-                f"  searched upward from: {cwd}\n"
-                "  looking for:          .prd-tool.toml  (preferred)\n"
-                "                        prd/index.xml   (convention)",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        import socket
-
-        import uvicorn
-
-        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                probe.bind((args.host, args.port))
-            except OSError as e:
-                print(
-                    f"prd dashboard: cannot bind {args.host}:{args.port} ({e.strerror}).\n"
-                    "  Another process is probably using the port. Try `--port <n>`\n"
-                    "  with a different number, or stop the other process.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-        finally:
-            probe.close()
-
-        if args.host not in ("127.0.0.1", "localhost", "::1"):
-            print(
-                f"prd dashboard: warning: binding {args.host} exposes the dashboard\n"
-                "  on the network with no authentication. Use 127.0.0.1 unless you\n"
-                "  understand the risks.",
-                file=sys.stderr,
-            )
-
-        from prd_tool.dashboard.server import create_app
-
-        app = create_app(root.prd_dir)
-
-        url = f"http://{args.host}:{args.port}"
-        print(f"Dashboard at {url}  (PRD root: {root.prd_dir})")
-        print("Press Ctrl+C to stop.")
-
-        if not args.no_open:
-            import threading
-            import webbrowser
-
-            def _open_when_ready() -> None:
-                deadline = time.monotonic() + 5.0
-                while time.monotonic() < deadline:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        s.settimeout(0.2)
-                        try:
-                            s.connect((args.host, args.port))
-                            webbrowser.open(url)
-                            return
-                        except OSError:
-                            time.sleep(0.1)
-
-            threading.Thread(target=_open_when_ready, daemon=True).start()
-
-        # Don't outlive the terminal that launched us. If SIGHUP arrives (the
-        # shell's controlling terminal went away) or we get reparented to init
-        # (PID 1, i.e. our parent shell died without forwarding SIGHUP), shut
-        # down by raising SIGINT against ourselves — uvicorn handles SIGINT.
-        import signal as _signal
-        import threading as _threading
-
-        def _request_shutdown() -> None:
-            os.kill(os.getpid(), _signal.SIGINT)
-
-        if hasattr(_signal, "SIGHUP"):
-            _signal.signal(_signal.SIGHUP, lambda *_a: _request_shutdown())
-
-        _orig_ppid = os.getppid()
-
-        def _watch_parent() -> None:
-            while True:
-                time.sleep(2.0)
-                ppid = os.getppid()
-                if ppid == 1 or ppid != _orig_ppid:
-                    _request_shutdown()
-                    return
-
-        _threading.Thread(target=_watch_parent, daemon=True).start()
-
-        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+        _run_native_view(args.refs or [], detach=not args.no_detach)
         sys.exit(0)

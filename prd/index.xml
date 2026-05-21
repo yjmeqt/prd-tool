@@ -2,8 +2,10 @@
   <module name="discovery">
     <entry file="discovery/root-and-refs.xml" name="Root Discovery and Short References" />
   </module>
+  <module name="view">
+    <entry file="view/native.xml" name="PRD Viewer (Native)" />
+  </module>
   <module name="dashboard">
-    <entry file="dashboard/viewer.xml" name="PRD Dashboard Viewer" />
     <entry file="dashboard/static-export.xml" name="Static Read-only Export" />
   </module>
   <module name="install">
