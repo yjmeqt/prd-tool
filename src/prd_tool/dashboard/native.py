@@ -9,6 +9,7 @@ awkward to handle in the frontend.
 from __future__ import annotations
 
 import contextlib
+import re
 import sys
 import threading
 from pathlib import Path
@@ -123,7 +124,11 @@ def run_native(prd_dir: Path, refs: list[str]) -> None:
     html = html.replace('src="/assets/', 'src="./assets/').replace(
         'href="/assets/', 'href="./assets/'
     )
-    html = html.replace(" crossorigin>", ">").replace(' crossorigin="anonymous"', "")
+    # Strip `crossorigin` and `crossorigin="…"` attributes from any tag.
+    # Vite emits them on the module script and the stylesheet link, but the
+    # exact whitespace/quoting varies, so a regex is more robust than
+    # str.replace.
+    html = re.sub(r'\s+crossorigin(=("[^"]*"|\'[^\']*\'))?', "", html)
     index_html.write_text(html, encoding="utf-8")
 
     windows: list[Any] = []
