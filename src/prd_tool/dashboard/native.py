@@ -109,15 +109,21 @@ def run_native(prd_dir: Path, refs: list[str]) -> None:
             f"Frontend bundle missing at {src_index}. Build with: pnpm --dir frontend build"
         )
 
-    # The wheel's bundle uses absolute /assets/... paths so FastAPI can serve
-    # SPA deep links. Under file:// those resolve to the filesystem root and
-    # the page goes blank. Rewrite to relative ./assets/ in a sibling file the
-    # native launcher loads instead.
+    # The wheel's bundle is built for HTTP serving:
+    #   1. Absolute /assets/... paths so FastAPI can serve SPA deep links;
+    #      under file:// they resolve to the filesystem root and the page
+    #      goes blank.
+    #   2. <script crossorigin> / <link crossorigin> attributes (Vite default
+    #      for module scripts). Under file:// WKWebView enforces CORS on
+    #      crossorigin module scripts, and since file:// requests have no
+    #      origin, the script silently fails to load — blank window, no log.
+    # Rewrite both into a sibling file the native launcher loads instead.
     index_html = static_dir / "index.native.html"
     html = src_index.read_text(encoding="utf-8")
     html = html.replace('src="/assets/', 'src="./assets/').replace(
         'href="/assets/', 'href="./assets/'
     )
+    html = html.replace(" crossorigin>", ">").replace(' crossorigin="anonymous"', "")
     index_html.write_text(html, encoding="utf-8")
 
     windows: list[Any] = []
