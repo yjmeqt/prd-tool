@@ -10,7 +10,7 @@ A way to publish the PRD dashboard as a read-only static site (e.g. on GitHub Pa
   <description>
     A new <code>prd export-json &lt;out&gt;</code> subcommand writes the dashboard's data to disk in the same shape the live API serves, so a static host can replace the backend.
   </description>
-  <rule id="discovers_root" status="✅"><code>prd export-json</code> resolves the PRD root the same way <a href="prd:discovery/root-and-refs">discovery/root-and-refs</a> defines it, and exits non-zero with a clear error if no root is found.</rule>
+  <rule id="discovers_root" status="❌"><code>prd export-json</code> resolves the PRD root the same way <a href="prd:discovery/root-and-refs">discovery/root-and-refs</a> defines it, and exits non-zero with a clear error if no root is found.</rule>
   <rule id="writes_index" status="✅">The command writes <code>&lt;out&gt;/index.json</code> whose payload matches what <code>GET /api/index</code> would return for the same PRD root.</rule>
   <rule id="writes_features" status="✅">For every <code>&lt;module&gt;/&lt;feature&gt;.xml</code> under the PRD root (excluding <code>index.xml</code>), the command writes <code>&lt;out&gt;/prd/&lt;module&gt;/&lt;feature&gt;.json</code> whose payload matches what <code>GET /api/prd/&lt;module&gt;/&lt;feature&gt;</code> would return.</rule>
   <rule id="copies_assets" status="✅">Every non-XML file under each module directory is copied to <code>&lt;out&gt;/asset/&lt;module&gt;/&lt;relative-path&gt;</code>, preserving directory structure, so images referenced from PRD rich content resolve under the static host.</rule>

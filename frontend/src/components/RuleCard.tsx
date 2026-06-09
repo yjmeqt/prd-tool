@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/api";
 import { Rule } from "@/types";
@@ -6,7 +7,7 @@ import { RichContent } from "@/components/RichContent";
 import { patchIndexStatsFromFeature } from "@/lib/cacheSync";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Check, X, CircleDashed } from "lucide-react";
+import { Check, X, CircleDashed, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { IS_READONLY } from "@/lib/staticMode";
@@ -25,6 +26,18 @@ const STATUS_LABEL: Record<string, string> = {
   "⚠️": "Partial · click to mark done",
   "❌": "Not implemented · click to mark partial",
 };
+
+function stripHtmlTags(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .trim();
+}
 
 export function RuleCard({
   rule,
@@ -58,6 +71,31 @@ export function RuleCard({
 
   const onClick = () => mut.mutate(RULE_CYCLE[rule.status] ?? "❌");
   const dimmed = rule.status === "✅";
+
+  const handleCopy = useCallback(async () => {
+    const plainText = stripHtmlTags(rule.text);
+    const parts: string[] = [];
+    parts.push(`**Feature:** \`${module}/${feature}\``);
+    parts.push(`**Requirement:** ${reqId}`);
+    parts.push(`**Rule:** ${rule.id}${rule.context ? ` (${rule.context})` : ""}`);
+    parts.push(`**Status:** ${rule.status}`);
+    parts.push("");
+    parts.push(plainText);
+    if (rule.figma_nodes.length > 0) {
+      parts.push("");
+      parts.push("**Figma:**");
+      for (const fn of rule.figma_nodes) {
+        const url = `https://www.figma.com/design/${fn.file}?node-id=${fn.node}`;
+        parts.push(`- ${fn.name || "node"}: ${url}`);
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(parts.join("\n"));
+      toast.success(`Copied rule ${rule.id} to clipboard`);
+    } catch {
+      toast.error("Failed to copy to clipboard");
+    }
+  }, [module, feature, reqId, rule]);
 
   return (
     <div
@@ -117,6 +155,24 @@ export function RuleCard({
           </div>
         )}
       </div>
+
+      <Tooltip delayDuration={200}>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent hover:border transition-colors"
+            onClick={handleCopy}
+            aria-label={`Copy rule ${rule.id} to clipboard`}
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="left" sideOffset={8}>
+          Copy rule context
+          <span className="ml-2 font-mono text-[10px] text-muted-foreground">{rule.id}</span>
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }
