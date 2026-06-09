@@ -190,7 +190,14 @@ def run_native(prd_dir: Path, refs: list[str]) -> None:
 
     def _open(ref: str | None) -> None:
         title = f"PRD — {ref}" if ref else "PRD"
-        w = webview.create_window(title, url=_ref_to_url(ref), js_api=api, width=1280, height=860)
+        w = webview.create_window(
+            title,
+            url=_ref_to_url(ref),
+            js_api=api,
+            width=1280,
+            height=860,
+            text_select=True,
+        )
         windows.append(w)
 
     api._open_window = _open
