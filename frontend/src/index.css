@@ -311,6 +311,10 @@
   height: auto;
   border: 1px solid var(--rule);
   margin: 0.5em 0;
+  cursor: zoom-in;
+}
+.prd-prose a img {
+  cursor: pointer;
 }
 .prd-prose h1,
 .prd-prose h2,

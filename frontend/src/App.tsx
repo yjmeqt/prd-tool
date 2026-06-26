@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
+import { Lightbox } from "@/components/Lightbox";
 import { HomePage } from "@/pages/Home";
 import { FeaturePage } from "@/pages/Feature";
 import { useSseInvalidation } from "@/useSse";
@@ -63,6 +64,7 @@ export function App() {
           </div>
         </main>
         <Toaster position="bottom-right" richColors />
+        <Lightbox />
       </div>
     </TooltipProvider>
   );

@@ -8,8 +8,12 @@ import { RichContent } from "@/components/RichContent";
 import { UnfinishedToggle } from "@/components/UnfinishedToggle";
 import { useUnfinishedOnly } from "@/useUnfinishedOnly";
 import { useDocumentTitle } from "@/useDocumentTitle";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ClipboardCopy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { buildFeaturePrompt } from "@/lib/prdClipboard";
+import { toast } from "sonner";
 
 const BUG_ORDER: Record<string, number> = { Open: 0, "Fix Pending": 1, Fixed: 2 };
 
@@ -58,10 +62,36 @@ export function FeaturePage() {
     <div>
       {/* Folio header */}
       <header className="mb-14 rise rise-1">
-        <div className="eyebrow text-muted-foreground flex items-center gap-3">
-          <span>{data.module}</span>
-          <span className="text-rule">/</span>
-          <span className="font-mono">{data.ref}</span>
+        <div className="flex items-start justify-between gap-4">
+          <div className="eyebrow text-muted-foreground flex items-center gap-3">
+            <span>{data.module}</span>
+            <span className="text-rule">/</span>
+            <span className="font-mono">{data.ref}</span>
+          </div>
+          <Tooltip delayDuration={200}>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(buildFeaturePrompt(data));
+                    toast.success("Copied PRD context for agent");
+                  } catch {
+                    toast.error("Failed to copy to clipboard");
+                  }
+                }}
+                aria-label="Copy PRD context for an agent"
+              >
+                <ClipboardCopy className="h-3.5 w-3.5" />
+                <span className="eyebrow">Copy for agent</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left" sideOffset={8}>
+              Copy an implementation prompt (PRD source path) to hand to another agent
+            </TooltipContent>
+          </Tooltip>
         </div>
         <h1 className="font-display text-6xl leading-[0.95] tracking-tight mt-3">{data.name}</h1>
         {data.overview && (
