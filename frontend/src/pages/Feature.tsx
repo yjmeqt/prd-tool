@@ -8,11 +8,11 @@ import { RichContent } from "@/components/RichContent";
 import { UnfinishedToggle } from "@/components/UnfinishedToggle";
 import { useUnfinishedOnly } from "@/useUnfinishedOnly";
 import { useDocumentTitle } from "@/useDocumentTitle";
-import { AlertCircle, ClipboardCopy } from "lucide-react";
+import { AlertCircle, ClipboardCopy, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { buildFeaturePrompt } from "@/lib/prdClipboard";
+import { buildFeaturePrompt, buildRequirementPrompt } from "@/lib/prdClipboard";
 import { toast } from "sonner";
 
 const BUG_ORDER: Record<string, number> = { Open: 0, "Fix Pending": 1, Fixed: 2 };
@@ -183,7 +183,39 @@ export function FeaturePage() {
                 </div>
 
                 <header className="mb-4">
-                  <h3 className="font-display text-3xl tracking-tight leading-tight">{req.name}</h3>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-display text-3xl tracking-tight leading-tight">
+                      {req.name}
+                    </h3>
+                    <Tooltip delayDuration={200}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent hover:border transition-colors mt-1"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(
+                                buildRequirementPrompt(req, data.module, data.feature),
+                              );
+                              toast.success(`Copied requirement ${req.id} to clipboard`);
+                            } catch {
+                              toast.error("Failed to copy to clipboard");
+                            }
+                          }}
+                          aria-label={`Copy requirement ${req.id} to clipboard`}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" sideOffset={8}>
+                        Copy all rules in this requirement
+                        <span className="ml-2 font-mono text-[10px] text-muted-foreground">
+                          {req.id}
+                        </span>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   {req.description && !allDone && (
                     <RichContent
                       html={req.description}

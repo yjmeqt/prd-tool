@@ -11,7 +11,7 @@ import { Check, X, CircleDashed, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { IS_READONLY } from "@/lib/staticMode";
-import { stripHtmlTags } from "@/lib/prdClipboard";
+import { buildRulePrompt } from "@/lib/prdClipboard";
 
 const RULE_CYCLE: Record<string, string> = { "❌": "⚠️", "⚠️": "✅", "✅": "❌" };
 
@@ -27,29 +27,6 @@ const STATUS_LABEL: Record<string, string> = {
   "⚠️": "Partial · click to mark done",
   "❌": "Not implemented · click to mark partial",
 };
-
-/** Extract <img src> values from rule HTML and resolve each to a path an agent
- *  can open. Mirrors the viewer's resolution (rewriteImgSrc):
- *  - http(s)/data/absolute srcs are returned unchanged;
- *  - relative srcs resolve against the module dir, prefixed with the absolute
- *    PRD asset root when native mode exposes it, else left module-relative. */
-function extractImagePaths(html: string, module: string): string[] {
-  if (!html.includes("<img")) return [];
-  const out: string[] = [];
-  const re = /<img\b[^>]*?\bsrc="([^"]+)"/gi;
-  let m: RegExpExecArray | null;
-  const root = typeof window !== "undefined" ? window.__prdAssetRoot : undefined;
-  while ((m = re.exec(html)) !== null) {
-    const src = m[1];
-    if (/^(https?:|data:|file:|\/)/i.test(src)) {
-      out.push(src);
-      continue;
-    }
-    const cleaned = src.replace(/^\.?\//, "");
-    out.push(root ? `${root}/${module}/${cleaned}` : `${module}/${cleaned}`);
-  }
-  return out;
-}
 
 export function RuleCard({
   rule,
@@ -85,32 +62,8 @@ export function RuleCard({
   const dimmed = rule.status === "✅";
 
   const handleCopy = useCallback(async () => {
-    const plainText = stripHtmlTags(rule.text);
-    const parts: string[] = [];
-    parts.push(`**Feature:** \`${module}/${feature}\``);
-    parts.push(`**Requirement:** ${reqId}`);
-    parts.push(`**Rule:** ${rule.id}${rule.context ? ` (${rule.context})` : ""}`);
-    parts.push(`**Status:** ${rule.status}`);
-    parts.push("");
-    parts.push(plainText);
-    const images = extractImagePaths(rule.text, module);
-    if (images.length > 0) {
-      parts.push("");
-      parts.push("**Images:**");
-      for (const img of images) {
-        parts.push(`- ${img}`);
-      }
-    }
-    if (rule.figma_nodes.length > 0) {
-      parts.push("");
-      parts.push("**Figma:**");
-      for (const fn of rule.figma_nodes) {
-        const url = `https://www.figma.com/design/${fn.file}?node-id=${fn.node}`;
-        parts.push(`- ${fn.name || "node"}: ${url}`);
-      }
-    }
     try {
-      await navigator.clipboard.writeText(parts.join("\n"));
+      await navigator.clipboard.writeText(buildRulePrompt(rule, reqId, module, feature));
       toast.success(`Copied rule ${rule.id} to clipboard`);
     } catch {
       toast.error("Failed to copy to clipboard");
