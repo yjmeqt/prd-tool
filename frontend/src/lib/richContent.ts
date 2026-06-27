@@ -17,25 +17,28 @@ function nativeAssetUrl(module: string, cleaned: string): string | null {
   return `file://${root}/${encodeURIComponent(module)}/${encodePath(cleaned)}`;
 }
 
-/** Rewrite relative <img src="..."> to the dashboard's asset URL.
+/** Resolve a single (possibly relative) <img src> to the dashboard's asset URL.
  *
  *  Native mode (window.pywebview): file://<prd-root>/<module>/<src>.
  *  Static mode (VITE_STATIC_BASE): <BASE>/asset/<module>/<src>.
  *  Live mode: /api/prd-asset/<module>/<feature>/<src>.
+ *  Absolute srcs (http/data/file/root) are returned unchanged.
  */
+export function assetUrl(module: string, feature: string, src: string): string {
+  if (/^(https?:|data:|file:|\/)/i.test(src)) return src;
+  const cleaned = src.replace(/^\.?\//, "");
+  const native = nativeAssetUrl(module, cleaned);
+  if (native) return native;
+  if (IS_READONLY) return staticAssetUrl(module, cleaned);
+  return `/api/prd-asset/${encodeURIComponent(module)}/${encodeURIComponent(feature)}/${encodePath(cleaned)}`;
+}
+
+/** Rewrite every relative <img src="..."> in an HTML string to its asset URL. */
 export function rewriteImgSrc(html: string, module: string, feature: string): string {
   if (!html.includes("<img")) return html;
   return html.replace(/<img\b([^>]*?)\bsrc="([^"]+)"/gi, (match, pre, src) => {
     if (/^(https?:|data:|file:|\/)/i.test(src)) return match;
-    const cleaned = src.replace(/^\.?\//, "");
-    const native = nativeAssetUrl(module, cleaned);
-    if (native) {
-      return `<img${pre}src="${native}"`;
-    }
-    if (IS_READONLY) {
-      return `<img${pre}src="${staticAssetUrl(module, cleaned)}"`;
-    }
-    return `<img${pre}src="/api/prd-asset/${encodeURIComponent(module)}/${encodeURIComponent(feature)}/${encodePath(cleaned)}"`;
+    return `<img${pre}src="${assetUrl(module, feature, src)}"`;
   });
 }
 

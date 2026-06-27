@@ -109,6 +109,25 @@ per searchable fragment. It is **not** updated automatically — re-run
 `prd index` (or Reindex) after editing PRDs. If the embedding model is
 unavailable, search degrades gracefully to lexical-only.
 
+### Image content search (optional)
+
+Local `<img>` screenshots can also be searched by what's *in* them:
+
+```bash
+uv sync --extra vision      # rapidocr-onnxruntime (OCR)
+prd index --clip            # OCR + CLIP visual vectors
+```
+
+- **OCR** (when `rapidocr` is installed): text inside a screenshot is indexed,
+  so a search hits the image.
+- **`--clip`**: CLIP image vectors (via fastembed, already a core dep) power a
+  "Visually similar" group in the palette — find screenshots that *look like* a
+  text query.
+
+Both stages are cached per image content hash (unchanged screenshots aren't
+reprocessed) and degrade gracefully if a model or dependency is absent. Image
+search requires a backend, so it isn't available in static export mode.
+
 ## PRD file shape
 
 See [`skills/prd/SKILL.md`](skills/prd/SKILL.md) for the full XML schema, requirement/rule/bug/ui-review writing rules, and the load workflow.

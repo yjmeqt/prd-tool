@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, CornerDownLeft, RefreshCw, Loader2, FileText } from "lucide-react";
+import {
+  Search,
+  CornerDownLeft,
+  RefreshCw,
+  Loader2,
+  FileText,
+  Image as ImageIcon,
+} from "lucide-react";
 import { api } from "@/api";
 import { cn } from "@/lib/utils";
 import { IS_READONLY } from "@/lib/staticMode";
+import { assetUrl } from "@/lib/richContent";
 import type { SearchResult, SearchStatus } from "@/types";
 import { toast } from "sonner";
 
@@ -65,12 +73,14 @@ const KIND_LABEL: Record<string, string> = {
   bug: "Bug",
   overview: "Overview",
   finding: "Finding",
+  image: "Image",
 };
 
 export function SearchPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [visual, setVisual] = useState<SearchResult[]>([]);
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<SearchStatus | null>(null);
@@ -124,6 +134,7 @@ export function SearchPalette() {
     const id = window.setTimeout(() => {
       if (!q) {
         setResults([]);
+        setVisual([]);
         setLoading(false);
         return;
       }
@@ -133,6 +144,7 @@ export function SearchPalette() {
         .then((r) => {
           if (cancelled) return;
           setResults(r.results);
+          setVisual(r.visual ?? []);
           setNeedsIndex(r.needs_index);
           setActive(0);
         })
@@ -153,6 +165,7 @@ export function SearchPalette() {
     setOpen(false);
     setQuery("");
     setResults([]);
+    setVisual([]);
     setActive(0);
   }, []);
 
@@ -206,6 +219,45 @@ export function SearchPalette() {
     el?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
+  // activeIdx is the keyboard index for main results, or null for visual rows
+  // (mouse-only — they live in a separate space from the CLIP ranking).
+  const renderRow = (r: SearchResult, key: string, activeIdx: number | null) => (
+    <button
+      key={key}
+      data-idx={activeIdx ?? undefined}
+      onMouseMove={activeIdx != null ? () => setActive(activeIdx) : undefined}
+      onClick={() => select(r)}
+      className={cn(
+        "w-full text-left px-4 py-2.5 flex gap-3 border-b hairline last:border-b-0 transition-colors",
+        activeIdx != null && activeIdx === active ? "bg-accent" : "hover:bg-accent/40",
+      )}
+    >
+      {r.kind === "image" && r.image && (
+        <img
+          src={assetUrl(r.module, r.feature, r.image)}
+          alt=""
+          loading="lazy"
+          className="h-12 w-12 shrink-0 rounded border hairline object-cover bg-muted"
+        />
+      )}
+      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-muted-foreground border hairline rounded px-1 py-px">
+            {KIND_LABEL[r.kind] ?? r.kind}
+          </span>
+          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{r.label}</span>
+          <span className="ml-auto shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground/70 truncate">
+            <FileText className="h-3 w-3 shrink-0" />
+            {r.feature_name}
+          </span>
+        </div>
+        <div className="text-[13px] leading-snug text-foreground/80 line-clamp-2">
+          {highlight(r.snippet, query)}
+        </div>
+      </div>
+    </button>
+  );
+
   if (!open) return null;
 
   return (
@@ -254,39 +306,23 @@ export function SearchPalette() {
                 </button>
               )}
             </div>
-          ) : query.trim() && !loading && results.length === 0 ? (
+          ) : query.trim() && !loading && results.length === 0 && visual.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-muted-foreground">
               No matches for “{query.trim()}”.
             </div>
           ) : (
-            results.map((r, i) => (
-              <button
-                key={`${r.ref}#${r.anchor}-${i}`}
-                data-idx={i}
-                onMouseMove={() => setActive(i)}
-                onClick={() => select(r)}
-                className={cn(
-                  "w-full text-left px-4 py-2.5 flex flex-col gap-0.5 border-b hairline last:border-b-0 transition-colors",
-                  i === active ? "bg-accent" : "hover:bg-accent/40",
-                )}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-muted-foreground border hairline rounded px-1 py-px">
-                    {KIND_LABEL[r.kind] ?? r.kind}
-                  </span>
-                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                    {r.label}
-                  </span>
-                  <span className="ml-auto shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground/70 truncate">
-                    <FileText className="h-3 w-3 shrink-0" />
-                    {r.feature_name}
-                  </span>
-                </div>
-                <div className="text-[13px] leading-snug text-foreground/80 line-clamp-2">
-                  {highlight(r.snippet, query)}
-                </div>
-              </button>
-            ))
+            <>
+              {results.map((r, i) => renderRow(r, `${r.ref}#${r.anchor}-${i}`, i))}
+              {visual.length > 0 && (
+                <>
+                  <div className="px-4 pt-3 pb-1 flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <ImageIcon className="h-3 w-3" />
+                    Visually similar
+                  </div>
+                  {visual.map((r, i) => renderRow(r, `v-${r.ref}#${r.anchor}-${i}`, null))}
+                </>
+              )}
+            </>
           )}
         </div>
 

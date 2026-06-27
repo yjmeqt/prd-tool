@@ -262,6 +262,12 @@ def main() -> None:
         action="store_true",
         help="Skip embeddings; build a lexical-only index (no model download)",
     )
+    index_parser.add_argument(
+        "--clip",
+        action="store_true",
+        help="Embed screenshots with CLIP for visual ('looks like') search "
+        "(downloads a model on first run)",
+    )
 
     view_parser = sub.add_parser("view", help="Open the PRD viewer")
     view_parser.add_argument(
@@ -435,7 +441,9 @@ def main() -> None:
             sys.exit(1)
         if not args.no_embeddings:
             print("Building search index (downloading the embedding model on first run)…")
-        status = search_mod.reindex(root.prd_dir, embeddings=not args.no_embeddings)
+        if args.clip:
+            print("Embedding screenshots with CLIP for visual search…")
+        status = search_mod.reindex(root.prd_dir, embeddings=not args.no_embeddings, clip=args.clip)
         kind = "lexical + semantic" if status["has_embeddings"] else "lexical-only"
         print(
             f"Indexed {status['fragment_count']} fragment(s) [{kind}] → "

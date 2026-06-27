@@ -29,6 +29,7 @@ export type SearchResult = {
   anchor: string;
   label: string;
   snippet: string;
+  image?: string | null;
 };
 
 export type SearchStatus = {
@@ -36,11 +37,14 @@ export type SearchStatus = {
   indexed_at: number | null;
   fragment_count: number;
   has_embeddings: boolean;
+  has_clip?: boolean;
+  image_count?: number;
 };
 
 export type SearchResponse = SearchStatus & {
   needs_index: boolean;
   results: SearchResult[];
+  visual?: SearchResult[];
 };
 
 export type FigmaNode = { name: string; file: string; node: string };

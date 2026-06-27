@@ -19,6 +19,7 @@ src/prd_tool/dashboard/static/index.native.html
 
 # Search index sidecar built by `prd index`
 .prd-tool-search.json
+.prd-tool-ocr-cache.json
 
 # Playwright MCP scratch output
 .playwright-mcp/

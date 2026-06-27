@@ -16,6 +16,7 @@ SAMPLE = """<prd name="Collection Feed">
   <description>The inner feed renders collection entries.</description>
   <rule id="renders_items" status="✅">展示收藏内流的条目列表。</rule>
   <rule id="paginates" status="❌">Loads more items when scrolling to the bottom.</rule>
+  <rule id="has_shot" status="❌">See <img src="shots/login.png"/> for the layout.</rule>
 </requirement>
 
 <bug id="B1" status="Open" date="2026-01-01" rule="R10.paginates">
@@ -29,8 +30,10 @@ SAMPLE = """<prd name="Collection Feed">
 @pytest.fixture
 def prd_dir(tmp_path: Path) -> Path:
     d = tmp_path / "prd"
-    (d / "feed").mkdir(parents=True)
+    (d / "feed" / "shots").mkdir(parents=True)
     (d / "feed" / "collection.xml").write_text(SAMPLE, encoding="utf-8")
+    # A real (tiny) file so the OCR enrichment can hash it.
+    (d / "feed" / "shots" / "login.png").write_bytes(b"\x89PNG\r\n\x1a\n-fake-png-bytes")
     (d / "index.xml").write_text("<prd_index></prd_index>", encoding="utf-8")
     return d
 
@@ -49,7 +52,7 @@ def test_iter_fragments_kinds_and_anchors(prd_dir: Path) -> None:
     frags = search.iter_fragments(prd_dir)
     by_anchor = {f.anchor: f for f in frags}
     kinds = {f.kind for f in frags}
-    assert kinds == {"overview", "requirement", "rule", "bug"}
+    assert kinds == {"overview", "requirement", "rule", "bug", "image"}
     # rule anchor matches the DOM id RuleCard renders: "<reqId>.<ruleId>"
     assert "R10.renders_items" in by_anchor
     assert by_anchor["R10.renders_items"].kind == "rule"
@@ -95,6 +98,40 @@ def test_search_status_reflects_index(prd_dir: Path) -> None:
     st = search.search_status(prd_dir)
     assert st["exists"] is True
     assert st["fragment_count"] >= 4
+
+
+def test_image_fragment_indexed_with_ocr(prd_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Stub OCR so the test doesn't need the onnx model.
+    monkeypatch.setattr(search, "_ocr_image", lambda p: "Login error banner shown")
+    search.reindex(prd_dir, embeddings=False)
+
+    res = search.search(prd_dir, "login error banner")
+    img_hits = [r for r in res["results"] if r["kind"] == "image"]
+    assert img_hits, "expected an image fragment to match the OCR text"
+    hit = img_hits[0]
+    assert hit["image"] == "shots/login.png"
+    # anchored to the rule that embeds the <img>
+    assert hit["anchor"] == "R10.has_shot"
+
+
+def test_clip_visual_search_returns_image(prd_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Stub OCR (empty) and CLIP so the image is kept only via its visual vector.
+    monkeypatch.setattr(search, "_ocr_image", lambda p: "")
+    monkeypatch.setattr(search, "_clip_image_vec", lambda p: [1.0, 0.0, 0.0])
+    monkeypatch.setattr(search, "_clip_text_vec", lambda q: [1.0, 0.0, 0.0])
+    st = search.reindex(prd_dir, embeddings=False, clip=True)
+    assert st["has_clip"] is True
+
+    res = search.search(prd_dir, "anything visual")
+    assert res["visual"], "expected a CLIP visual hit"
+    assert res["visual"][0]["image"] == "shots/login.png"
+
+
+def test_image_without_ocr_text_is_dropped(prd_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(search, "_ocr_image", lambda p: "")
+    search.reindex(prd_dir, embeddings=False)
+    res = search.search(prd_dir, "login")
+    assert all(r["kind"] != "image" for r in res["results"])
 
 
 def test_ops_reindex_degrades_without_model(prd_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:

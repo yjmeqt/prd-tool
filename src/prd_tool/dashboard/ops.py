@@ -83,11 +83,11 @@ class DashboardOps:
 
         return search_mod.search_status(self.prd_dir)
 
-    def reindex(self) -> dict[str, Any]:
+    def reindex(self, clip: bool = False) -> dict[str, Any]:
         from prd_tool.dashboard import search as search_mod
 
         try:
-            return search_mod.reindex(self.prd_dir)
+            return search_mod.reindex(self.prd_dir, clip=clip)
         except OSError as e:
             raise OpsError("internal", f"failed to write search index: {e}") from e
 

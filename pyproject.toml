@@ -31,6 +31,13 @@ dependencies = [
   "fastembed>=0.3",
 ]
 
+[project.optional-dependencies]
+# Image-content search (OCR + CLIP visual). Kept out of core: search.py
+# lazy-imports these and degrades (OCR-less / lexical) when absent.
+vision = [
+  "rapidocr-onnxruntime>=1.3",  # OCR (onnx, offline)
+]
+
 [project.scripts]
 prd = "prd_tool.cli:main"
 
@@ -54,7 +61,7 @@ strict = true
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["rank_bm25.*", "fastembed.*"]
+module = ["rank_bm25.*", "fastembed.*", "rapidocr_onnxruntime.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
