@@ -291,6 +291,9 @@ def _enrich_images(
         return
     cache = _load_json(cache_path)  # {hash: {"ocr": str, "clip": [...]}}
     changed = False
+    # When a dependency is missing, report once and stop retrying it — and don't
+    # cache the empty result, so a later run with the dep installed re-runs it.
+    ocr_off = clip_off = False
     for f in image_frags:
         assert f.image is not None
         abs_path = prd_dir / f.module / f.image
@@ -300,20 +303,32 @@ def _enrich_images(
         entry = cache.get(h)
         if not isinstance(entry, dict):  # absent or pre-dict (legacy) format
             entry = {}
-        if "ocr" not in entry:
+        if "ocr" not in entry and not ocr_off:
             try:
                 entry["ocr"] = _ocr_image(abs_path)
+                changed = True
+            except ImportError:
+                ocr_off = True
+                print(
+                    "prd index: OCR skipped — image-text search needs the 'vision' extra. "
+                    "Install with: uv tool install --with rapidocr-onnxruntime prd-tool",
+                    file=sys.stderr,
+                )
             except Exception as e:  # noqa: BLE001 — OCR is best-effort
                 entry["ocr"] = ""
-                print(f"prd index: OCR unavailable ({e})", file=sys.stderr)
-            changed = True
-        if clip and "clip" not in entry:
+                changed = True
+                print(f"prd index: OCR failed for {f.image} ({e})", file=sys.stderr)
+        if clip and "clip" not in entry and not clip_off:
             try:
                 entry["clip"] = _clip_image_vec(abs_path)
+                changed = True
+            except ImportError:
+                clip_off = True
+                print("prd index: CLIP skipped — fastembed image support missing.", file=sys.stderr)
             except Exception as e:  # noqa: BLE001 — CLIP is best-effort
                 entry["clip"] = None
-                print(f"prd index: CLIP image embedding unavailable ({e})", file=sys.stderr)
-            changed = True
+                changed = True
+                print(f"prd index: CLIP failed for {f.image} ({e})", file=sys.stderr)
         cache[h] = entry
         f.clip = entry.get("clip") or None
         f.text = entry.get("ocr", "")
