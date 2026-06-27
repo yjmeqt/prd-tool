@@ -1,4 +1,4 @@
-import { Feature, IndexPayload } from "./types";
+import { Feature, IndexPayload, SearchResponse, SearchStatus } from "./types";
 import { noteOwnWrite } from "./useSse";
 import { IS_READONLY, STATIC_BASE } from "./lib/staticMode";
 import { isNative, nativeApi, NativeResult } from "./lib/nativeMode";
@@ -116,6 +116,41 @@ export const api = {
     }
     if (IS_READONLY) return readOnlyReject<Feature>();
     return postJson<Feature>(`/api/prd/${m}/${f}/finding/${encodeURIComponent(ruleQid)}/resolve`);
+  },
+
+  search: async (query: string, limit = 30): Promise<SearchResponse> => {
+    if (isNative()) {
+      return (await nativeApi().search(query, limit)) as SearchResponse;
+    }
+    if (IS_READONLY) {
+      return {
+        exists: false,
+        needs_index: false,
+        indexed_at: null,
+        fragment_count: 0,
+        has_embeddings: false,
+        results: [],
+      };
+    }
+    return getJson<SearchResponse>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  },
+
+  searchStatus: async (): Promise<SearchStatus> => {
+    if (isNative()) {
+      return (await nativeApi().search_status()) as SearchStatus;
+    }
+    if (IS_READONLY) {
+      return { exists: false, indexed_at: null, fragment_count: 0, has_embeddings: false };
+    }
+    return getJson<SearchStatus>("/api/search-status");
+  },
+
+  reindex: async (): Promise<SearchStatus> => {
+    if (isNative()) {
+      return unwrap<SearchStatus>((await nativeApi().reindex()) as NativeResult<SearchStatus>);
+    }
+    if (IS_READONLY) return readOnlyReject<SearchStatus>();
+    return postJson<SearchStatus>("/api/reindex");
   },
 };
 

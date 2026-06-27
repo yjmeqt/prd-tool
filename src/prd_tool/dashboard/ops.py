@@ -71,6 +71,26 @@ class DashboardOps:
         self._wrap_edit(resolve_finding, path, rule_qid)
         return self.feature(module, feature)
 
+    # ---- search ----
+
+    def search(self, query: str, limit: int = 30) -> dict[str, Any]:
+        from prd_tool.dashboard import search as search_mod
+
+        return search_mod.search(self.prd_dir, query, limit)
+
+    def search_status(self) -> dict[str, Any]:
+        from prd_tool.dashboard import search as search_mod
+
+        return search_mod.search_status(self.prd_dir)
+
+    def reindex(self) -> dict[str, Any]:
+        from prd_tool.dashboard import search as search_mod
+
+        try:
+            return search_mod.reindex(self.prd_dir)
+        except OSError as e:
+            raise OpsError("internal", f"failed to write search index: {e}") from e
+
     def asset_path(self, module: str, feature: str, asset_path: str) -> Path:
         """Resolve an asset path within the module dir, blocking traversal."""
         module_root = (self.prd_dir / module).resolve()

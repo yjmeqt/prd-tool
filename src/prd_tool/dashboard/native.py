@@ -116,6 +116,20 @@ class JsApi:
         except OpsError as e:
             return _err(e.code, e.message)
 
+    # ---- search ----
+
+    def search(self, query: str, limit: int = 30) -> dict[str, Any]:
+        return self._ops.search(query, limit)
+
+    def search_status(self) -> dict[str, Any]:
+        return self._ops.search_status()
+
+    def reindex(self) -> dict[str, Any]:
+        try:
+            return _ok(self._ops.reindex())
+        except OpsError as e:
+            return _err(e.code, e.message)
+
     # ---- diagnostics ----
 
     def report_log(self, level: str, message: str) -> None:

@@ -28,6 +28,9 @@ export interface NativeApi {
     status: string,
   ): Promise<NativeResult<unknown>>;
   resolve_finding(m: string, f: string, ruleQid: string): Promise<NativeResult<unknown>>;
+  search(query: string, limit: number): Promise<unknown>;
+  search_status(): Promise<unknown>;
+  reindex(): Promise<NativeResult<unknown>>;
   asset_root(): Promise<string>;
   open_window(ref: string | null): Promise<NativeResult<null>>;
 }

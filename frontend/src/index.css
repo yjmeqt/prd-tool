@@ -233,6 +233,21 @@
   .rise-4 {
     animation-delay: 0.28s;
   }
+
+  /* Transient highlight when search jumps to a rule/requirement/bug. */
+  @keyframes search-flash {
+    0%,
+    25% {
+      background-color: color-mix(in oklab, var(--destructive) 18%, transparent);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+  .search-flash {
+    animation: search-flash 1.6s ease-out both;
+    border-radius: 0.25rem;
+  }
 }
 
 /* Rich content inside PRD rich-text fields (overview, description, rule body, etc.).

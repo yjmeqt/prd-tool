@@ -1,14 +1,19 @@
 import { Route, Routes } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
 import { Lightbox } from "@/components/Lightbox";
+import { SearchPalette } from "@/components/SearchPalette";
 import { HomePage } from "@/pages/Home";
 import { FeaturePage } from "@/pages/Feature";
 import { useSseInvalidation } from "@/useSse";
 import { useSystemTheme } from "@/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Search } from "lucide-react";
 import { IS_READONLY } from "@/lib/staticMode";
+
+function openSearch() {
+  window.dispatchEvent(new Event("prd:open-search"));
+}
 
 export function App() {
   useSystemTheme();
@@ -34,12 +39,25 @@ export function App() {
                   </>
                 )}
               </div>
-              <div className="eyebrow text-muted-foreground tabular-nums">
-                {new Date().toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "short",
-                  day: "2-digit",
-                })}
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={openSearch}
+                  className="group flex items-center gap-2 rounded-md border hairline px-2.5 py-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  aria-label="Search PRDs (⌘K)"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  <span className="eyebrow">Search</span>
+                  <kbd className="font-mono text-[10px] text-muted-foreground/70 border hairline rounded px-1">
+                    ⌘K
+                  </kbd>
+                </button>
+                <div className="eyebrow text-muted-foreground tabular-nums">
+                  {new Date().toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "2-digit",
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -65,6 +83,7 @@ export function App() {
         </main>
         <Toaster position="bottom-right" richColors />
         <Lightbox />
+        <SearchPalette />
       </div>
     </TooltipProvider>
   );

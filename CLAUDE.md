@@ -19,7 +19,11 @@ uv run ruff format --check src/ tests/  # format check
 uv run mypy src/              # type check (strict mode)
 uv run pytest                 # run all tests
 uv run pytest tests/test_validate.py -k "test_name"  # single test
+uv run prd index              # (re)build the search index for the viewer
 ```
+
+`prd index` pulls `fastembed`/`onnxruntime` (lazy-imported) and downloads the
+embedding model on first run; use `--no-embeddings` for a lexical-only index.
 
 ### Frontend (`frontend/`)
 
@@ -58,7 +62,7 @@ VITE_STATIC_BASE=../out pnpm --dir frontend build  # builds SPA that reads stati
 
 The package is structured in layers:
 
-**CLI layer** — `cli.py` is the entry point (`prd` command). It defines argparse subcommands: `validate`, `format`, `stats`, `root`, `ls`, `export-json`, `view`. The `view` subcommand dispatches to either native mode (pywebview) or server mode (FastAPI) based on `--server`.
+**CLI layer** — `cli.py` is the entry point (`prd` command). It defines argparse subcommands: `validate`, `format`, `stats`, `root`, `ls`, `export-json`, `index`, `view`. The `view` subcommand dispatches to either native mode (pywebview) or server mode (FastAPI) based on `--server`. `index` builds the search index (`--no-embeddings` for a lexical-only build).
 
 **PRD root discovery** — `root.py` walks up from cwd looking for `.prd-tool.toml` (preferred) or `prd/index.xml` (convention). Returns a `Root` dataclass with `repo_root`, `prd_dir`, and `source`. All subcommands use `resolve_ref()` to turn `<module>/<feature>` strings into concrete paths.
 
@@ -67,9 +71,10 @@ The package is structured in layers:
 **Dashboard subsystem** (`dashboard/`):
 
 - `repo.py` — in-memory model. Parses XML from disk into JSON-serializable dicts for the frontend. Handles rich-text (XHTML) serialization via `_inner_html()` — child elements become HTML, `<figma_node>` children are excluded and emitted as JSON instead. `load_feature()` loads one PRD; `build_index()` loads all.
-- `ops.py` — transport-agnostic operations class (`DashboardOps`). Called by both FastAPI (`server.py`) and the pywebview JS bridge (`native.py`). Exposes `index()`, `feature()`, `set_rule_status()`, `set_bug_status()`, `resolve_finding()`, `asset_path()`. Returns Python types and raises `OpsError` — never HTTP/JSON aware.
+- `ops.py` — transport-agnostic operations class (`DashboardOps`). Called by both FastAPI (`server.py`) and the pywebview JS bridge (`native.py`). Exposes `index()`, `feature()`, `set_rule_status()`, `set_bug_status()`, `resolve_finding()`, `asset_path()`, `search()`, `search_status()`, `reindex()`. Returns Python types and raises `OpsError` — never HTTP/JSON aware.
+- `search.py` — hybrid search index. `iter_fragments()` walks every PRD into searchable fragments (overview / requirement / rule / bug / finding) each carrying the DOM anchor the viewer scrolls to (`R<n>`, `R<n>.<ruleid>`, `bug.<id>`). `reindex()` builds a snapshot — CJK-aware BM25 tokens + local fastembed sentence vectors (`paraphrase-multilingual-MiniLM-L12-v2`) — and writes it to a single repo-level sidecar (`<repo_root>/.prd-tool-search.json`, kept **outside** `prd_dir` so the file-watcher ignores it; git-ignored). `search()` loads the cached snapshot (invalidated by mtime), runs BM25 + cosine over the **same** fragment set, and fuses the two rankings with RRF. fastembed/onnxruntime are lazy-imported; if embeddings are unavailable the index degrades to lexical-only (`has_embeddings: false`). Indexing is manual (`prd index` / the viewer's Reindex button), never automatic.
 - `edits.py` — persisted mutations to PRD XML. Core pattern: read file → capture stat → mutate in-memory → write to temp file → format+validate → check stat hasn't changed (concurrent write detection via mtime/size/inode) → atomic replace. All three mutation types (rule status, bug status, resolve finding) follow this pattern.
-- `server.py` — FastAPI app factory. Serves the Vite-built SPA from `static/`, mounts `/api/*` endpoints, and provides SSE streaming.
+- `server.py` — FastAPI app factory. Serves the Vite-built SPA from `static/`, mounts `/api/*` endpoints (including `GET /api/search`, `GET /api/search-status`, `POST /api/reindex`), and provides SSE streaming.
 - `sse.py` — file-watch driven Server-Sent Events. Uses `watchfiles.awatch` to detect XML changes, classifies them (index_changed / prd_changed / invalid), and yields SSE-formatted bytes.
 - `native.py` — macOS native window entry point. Uses `pywebview` to create a WKWebView window. Exposes `JsApi` to JavaScript — Python methods become `window.pywebview.api.*` with a result envelope (`{ok, data}` | `{ok, error}`). Key details:
   - The Vite-built HTML is rewritten at launch to make asset paths relative (`/assets/` → `./assets/`) and to strip `crossorigin` attributes (WKWebView CORS under `file://`).
@@ -91,7 +96,7 @@ React 18 SPA with Vite, Tailwind CSS 4, shadcn/ui (Radix primitives), react-rout
 
 Native mode detection is a function (`isNative()`), not a module-level constant — `window.pywebview` is injected AFTER ESM evaluation, so a top-level check is always false.
 
-**Key components**: `RuleCard.tsx` (rule status toggle with Figma thumbnails), `BugCard.tsx` (bug status lifecycle: Open → Fix Pending → Fixed), `UiReviewBlock.tsx` (UI review findings), `RichContent.tsx` (renders XHTML, resolves local image `src` to file:// or asset URLs, intercepts `prd:` cross-reference links). `Sidebar.tsx` provides module navigation.
+**Key components**: `RuleCard.tsx` (rule status toggle with Figma thumbnails), `BugCard.tsx` (bug status lifecycle: Open → Fix Pending → Fixed), `UiReviewBlock.tsx` (UI review findings), `RichContent.tsx` (renders XHTML, resolves local image `src` to file:// or asset URLs, intercepts `prd:` cross-reference links). `Sidebar.tsx` provides module navigation. `SearchPalette.tsx` is the ⌘K hybrid-search palette (debounced `api.search`, keyboard nav, result snippets, jump-to-anchor with a flash highlight, and a Reindex button); it opens on ⌘K or a `prd:open-search` window event dispatched by the masthead button. Search is backend-only (server + native); in static read-only mode it is disabled.
 
 **Live updates**: `useSse.ts` connects to the SSE endpoint and invalidates react-query cache on file changes. In native mode, the watchfiles thread pushes events via `window.__prdOnFsEvent` instead.
 

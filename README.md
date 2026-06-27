@@ -86,6 +86,29 @@ prd view --server          # FastAPI on http://127.0.0.1:8765
 `prd dashboard` is a deprecated alias for `prd view --server` and will be
 removed in a future release.
 
+## Search
+
+The viewer has a hybrid search palette — press **⌘K** (or click **Search** in
+the masthead). It combines lexical ranking (BM25, with CJK-aware tokenization)
+and semantic ranking (local sentence embeddings via
+[fastembed](https://github.com/qdrant/fastembed)), fused so exact term hits and
+meaning-based hits both surface. Results jump straight to the matching rule,
+requirement, or bug.
+
+Search runs over an index you build on demand:
+
+```bash
+prd index                  # build the index (downloads the embedding model on first run, ~220 MB)
+prd index --no-embeddings  # lexical-only; no model download
+```
+
+You can also rebuild from inside the viewer with the **Reindex** button in the
+search palette. The index is a single repo-level file
+(`.prd-tool-search.json`, next to the PRD root, git-ignored) holding one entry
+per searchable fragment. It is **not** updated automatically — re-run
+`prd index` (or Reindex) after editing PRDs. If the embedding model is
+unavailable, search degrades gracefully to lexical-only.
+
 ## PRD file shape
 
 See [`skills/prd/SKILL.md`](skills/prd/SKILL.md) for the full XML schema, requirement/rule/bug/ui-review writing rules, and the load workflow.

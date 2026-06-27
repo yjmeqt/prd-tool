@@ -94,6 +94,21 @@ def create_app(prd_dir: Path) -> FastAPI:
         except OpsError as e:
             raise _ops_error_to_http(e) from e
 
+    @app.get("/api/search")
+    def get_search(q: str = "", limit: int = 30) -> dict[str, Any]:
+        return ops.search(q, limit)
+
+    @app.get("/api/search-status")
+    def get_search_status() -> dict[str, Any]:
+        return ops.search_status()
+
+    @app.post("/api/reindex")
+    def post_reindex() -> dict[str, Any]:
+        try:
+            return ops.reindex()
+        except OpsError as e:
+            raise _ops_error_to_http(e) from e
+
     @app.get("/api/events")
     def events() -> StreamingResponse:
         return StreamingResponse(

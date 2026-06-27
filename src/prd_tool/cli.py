@@ -253,6 +253,16 @@ def main() -> None:
         help="Output directory; will contain index.json, prd/<m>/<f>.json, asset/<m>/...",
     )
 
+    index_parser = sub.add_parser(
+        "index",
+        help="Build the hybrid search index (lexical + local embeddings) for the viewer",
+    )
+    index_parser.add_argument(
+        "--no-embeddings",
+        action="store_true",
+        help="Skip embeddings; build a lexical-only index (no model download)",
+    )
+
     view_parser = sub.add_parser("view", help="Open the PRD viewer")
     view_parser.add_argument(
         "refs",
@@ -412,6 +422,24 @@ def main() -> None:
         counts = export_static(root.prd_dir, out_dir)
         print(
             f"Exported {counts['features']} feature(s) and {counts['assets']} asset(s) to {out_dir}"
+        )
+        sys.exit(0)
+
+    elif args.command == "index":
+        from prd_tool.dashboard import search as search_mod
+        from prd_tool.root import find_root
+
+        root = find_root()
+        if root is None:
+            print("prd index: no PRD root found from cwd", file=sys.stderr)
+            sys.exit(1)
+        if not args.no_embeddings:
+            print("Building search index (downloading the embedding model on first run)…")
+        status = search_mod.reindex(root.prd_dir, embeddings=not args.no_embeddings)
+        kind = "lexical + semantic" if status["has_embeddings"] else "lexical-only"
+        print(
+            f"Indexed {status['fragment_count']} fragment(s) [{kind}] → "
+            f"{search_mod.default_index_path(root.prd_dir)}"
         )
         sys.exit(0)
 

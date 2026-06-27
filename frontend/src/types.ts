@@ -20,6 +20,29 @@ export type IndexPayload = {
   modules: { name: string; features: IndexFeature[] }[];
 };
 
+export type SearchResult = {
+  ref: string;
+  module: string;
+  feature: string;
+  feature_name: string;
+  kind: string;
+  anchor: string;
+  label: string;
+  snippet: string;
+};
+
+export type SearchStatus = {
+  exists: boolean;
+  indexed_at: number | null;
+  fragment_count: number;
+  has_embeddings: boolean;
+};
+
+export type SearchResponse = SearchStatus & {
+  needs_index: boolean;
+  results: SearchResult[];
+};
+
 export type FigmaNode = { name: string; file: string; node: string };
 export type Rule = {
   id: string;
