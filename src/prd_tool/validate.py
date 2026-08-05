@@ -19,7 +19,7 @@ from prd_tool.constants import (
 )
 
 
-def validate(path: Path) -> list[str]:
+def validate(path: Path, *, require_rule_status: bool = True) -> list[str]:
     """Validate a PRD XML file. Returns a list of error strings."""
     errors: list[str] = []
 
@@ -67,18 +67,26 @@ def validate(path: Path) -> list[str]:
 
         rule_ids_in_req: set[str] = set()
         for rule in req.findall("rule"):
-            for attr in RULE_REQUIRED_ATTRS:
+            required_attrs = RULE_REQUIRED_ATTRS if require_rule_status else {"id"}
+            for attr in required_attrs:
                 if attr not in rule.attrib:
                     errors.append(f"<rule> in {req_id} missing required attribute: {attr}")
 
             rule_id = rule.get("id", "")
             status = rule.get("status", "")
 
-            if status not in RULE_STATUSES:
-                errors.append(
-                    f"Rule {req_id}.{rule_id}: invalid status '{status}' "
-                    f"(expected one of {RULE_STATUSES})"
-                )
+            if require_rule_status:
+                if status not in RULE_STATUSES:
+                    errors.append(
+                        f"Rule {req_id}.{rule_id}: invalid status '{status}' "
+                        f"(expected one of {RULE_STATUSES})"
+                    )
+            else:
+                if status and status not in RULE_STATUSES:
+                    errors.append(
+                        f"Rule {req_id}.{rule_id}: invalid status '{status}' "
+                        f"(expected one of {RULE_STATUSES})"
+                    )
 
             if rule_id in rule_ids_in_req:
                 errors.append(f"Duplicate rule ID '{rule_id}' in {req_id}")

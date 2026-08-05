@@ -317,7 +317,12 @@ def main() -> None:
 
     if args.command == "validate":
         path = _resolve_or_exit(args.ref)
-        errors = validate(path)
+        
+        from prd_tool.root import find_root
+        root = find_root()
+        require_rule_status = root.status_dir is None if root is not None else True
+
+        errors = validate(path, require_rule_status=require_rule_status)
         if errors:
             print(f"Validation failed with {len(errors)} error(s):\n")
             for i, err in enumerate(errors, 1):
