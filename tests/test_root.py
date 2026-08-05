@@ -23,6 +23,7 @@ def test_find_root_finds_toml_at_cwd(tmp_path: Path) -> None:
         repo_root=tmp_path,
         prd_dir=tmp_path / "prd",
         source="toml",
+        status_dir=None,
     )
 
 
@@ -35,6 +36,7 @@ def test_find_root_finds_convention(tmp_path: Path) -> None:
         repo_root=tmp_path,
         prd_dir=tmp_path / "prd",
         source="convention",
+        status_dir=None,
     )
 
 
@@ -117,3 +119,47 @@ def test_resolve_ref_no_root_raises(tmp_path: Path) -> None:
     assert ".prd-tool.toml" in msg
     assert "prd/index.xml" in msg
     assert str(sub) in msg
+
+
+def test_find_root_status_dir_when_prd_status_exists(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    (tmp_path / "prd-status").mkdir()
+
+    root = find_root(tmp_path)
+
+    assert root is not None
+    assert root.status_dir == (tmp_path / "prd-status").resolve()
+
+
+def test_find_root_no_status_dir_when_absent(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+
+    root = find_root(tmp_path)
+
+    assert root is not None
+    assert root.status_dir is None
+
+
+def test_find_root_status_dir_from_toml(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text(
+        '[prd]\ndir = "prd"\nstatus_dir = "status-overlay"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "status-overlay").mkdir()
+
+    root = find_root(tmp_path)
+
+    assert root is not None
+    assert root.status_dir == (tmp_path / "status-overlay").resolve()
+
+
+def test_find_root_toml_status_dir_ignored_if_missing(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text(
+        '[prd]\nstatus_dir = "nope"\n',
+        encoding="utf-8",
+    )
+
+    root = find_root(tmp_path)
+
+    assert root is not None
+    assert root.status_dir is None
