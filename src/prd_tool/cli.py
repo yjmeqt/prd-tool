@@ -22,6 +22,14 @@ def _resolve_or_exit(ref: str) -> Path:
         sys.exit(1)
 
 
+def _require_rule_status() -> bool:
+    """False when a progress overlay dir is present (rule status lives in TOML)."""
+    from prd_tool.root import find_root
+
+    root = find_root()
+    return root.status_dir is None if root is not None else True
+
+
 _DETACH_SENTINEL_ENV = "_PRD_VIEW_DETACHED"
 
 
@@ -317,12 +325,7 @@ def main() -> None:
 
     if args.command == "validate":
         path = _resolve_or_exit(args.ref)
-        
-        from prd_tool.root import find_root
-        root = find_root()
-        require_rule_status = root.status_dir is None if root is not None else True
-
-        errors = validate(path, require_rule_status=require_rule_status)
+        errors = validate(path, require_rule_status=_require_rule_status())
         if errors:
             print(f"Validation failed with {len(errors)} error(s):\n")
             for i, err in enumerate(errors, 1):
@@ -342,7 +345,7 @@ def main() -> None:
             print(f"Not formatted: {path}", file=sys.stderr)
             sys.exit(1)
         path.write_text(formatted, encoding="utf-8")
-        errors = validate(path)
+        errors = validate(path, require_rule_status=_require_rule_status())
         if errors:
             print(f"Formatted but validation found {len(errors)} error(s):")
             for i, err in enumerate(errors, 1):
