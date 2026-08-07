@@ -37,6 +37,7 @@ def test_classify_feature_change(tmp_path: Path) -> None:
         "path": "m/f.xml",
     }
 
+
 def test_classify_status_change(tmp_path: Path) -> None:
     prd_dir = tmp_path / "prd"
     status_dir = tmp_path / "prd-status"

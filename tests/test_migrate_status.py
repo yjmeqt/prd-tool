@@ -54,6 +54,7 @@ def test_migrate_status(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         assert "status" not in r.attrib
 
     from prd_tool.validate import validate
+
     errors = validate(xml_path, require_rule_status=False)
     assert not errors
 

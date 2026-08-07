@@ -66,11 +66,11 @@ async def watch_events(
     kwargs = {"step": 50, "debounce": debounce_ms}
     if stop_event is not None:
         kwargs["stop_event"] = stop_event  # type: ignore[assignment]
-    
+
     paths_to_watch = [prd_dir]
     if status_dir is not None:
         paths_to_watch.append(status_dir)
-        
+
     async for changes in awatch(*paths_to_watch, **kwargs):  # type: ignore[arg-type]
         for change_type, path_str in changes:
             event = classify_event(prd_dir, change_type, Path(path_str), status_dir)
