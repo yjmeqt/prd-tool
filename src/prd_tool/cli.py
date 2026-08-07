@@ -261,6 +261,16 @@ def main() -> None:
         help="Output directory; will contain index.json, prd/<m>/<f>.json, asset/<m>/...",
     )
 
+    migrate_parser = sub.add_parser(
+        "migrate-status",
+        help="Extract rule progress into TOML files and strip XML status attributes",
+    )
+    migrate_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Do not write any files, just print summary",
+    )
+
     index_parser = sub.add_parser(
         "index",
         help="Build the hybrid search index (lexical + local embeddings) for the viewer",
@@ -467,6 +477,11 @@ def main() -> None:
             f"Exported {counts['features']} feature(s) and {counts['assets']} asset(s) to {out_dir}"
         )
         sys.exit(0)
+
+    elif args.command == "migrate-status":
+        from prd_tool.migrate_status import migrate_status
+
+        sys.exit(migrate_status(dry_run=args.dry_run))
 
     elif args.command == "index":
         from prd_tool.dashboard import search as search_mod

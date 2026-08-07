@@ -91,6 +91,7 @@ def load_progress(path: Path) -> Progress:
 def rule_status(progress: Progress, qualified_id: str) -> str:
     return progress.rules.get(qualified_id, "❌")
 
+
 def _escape_toml_string(s: str) -> str:
     s = s.replace("\\", "\\\\").replace('"', '\\"')
     s = s.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
@@ -99,14 +100,14 @@ def _escape_toml_string(s: str) -> str:
 
 def save_progress(path: Path, progress: Progress) -> None:
     lines = []
-    
+
     if progress.rules:
         lines.append("[rules]")
         for qid in sorted(progress.rules.keys()):
             status = progress.rules[qid]
             lines.append(f"{_escape_toml_string(qid)} = {_escape_toml_string(status)}")
         lines.append("")
-        
+
     if progress.notes:
         lines.append("[notes]")
         for qid in sorted(progress.notes.keys()):

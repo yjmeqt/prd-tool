@@ -36,7 +36,9 @@ def export_static(prd_dir: Path, out_dir: Path, status_dir: Path | None = None) 
     prd_out = out_dir / "prd"
     features = 0
     for ref, _ in list_feature_files(prd_dir):
-        payload = load_feature(prd_dir, FeatureRef(module=ref.module, feature=ref.feature), status_dir)
+        payload = load_feature(
+            prd_dir, FeatureRef(module=ref.module, feature=ref.feature), status_dir
+        )
         if payload is None:
             continue
         target = prd_out / ref.module / f"{ref.feature}.json"
