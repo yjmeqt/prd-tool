@@ -462,7 +462,7 @@ def main() -> None:
             sys.exit(1)
 
         out_dir = Path(args.out).resolve()
-        counts = export_static(root.prd_dir, out_dir)
+        counts = export_static(root.prd_dir, out_dir, status_dir=root.status_dir)
         print(
             f"Exported {counts['features']} feature(s) and {counts['assets']} asset(s) to {out_dir}"
         )

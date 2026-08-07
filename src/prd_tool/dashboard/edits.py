@@ -38,7 +38,9 @@ def _atomic_write(path: Path, contents: str) -> None:
         raise
 
 
-def _mutate_and_persist(path: Path, mutate: Callable[[ET.Element], None]) -> None:
+def _mutate_and_persist(
+    path: Path, mutate: Callable[[ET.Element], None], require_rule_status: bool = True
+) -> None:
     # Capture the file's identity at read time so we can detect concurrent
     # writes (an editor saving the file, a second POST racing this one) and
     # refuse to clobber.
@@ -69,7 +71,7 @@ def _mutate_and_persist(path: Path, mutate: Callable[[ET.Element], None]) -> Non
         except ET.ParseError as e:
             raise EditError(code="invalid", message=f"format failed: {e}") from e
         staging_path.write_text(formatted, encoding="utf-8")
-        errors = validate(staging_path)
+        errors = validate(staging_path, require_rule_status=require_rule_status)
         if errors:
             raise EditError(code="validation_failed", message="; ".join(errors))
 
@@ -112,7 +114,7 @@ def set_rule_status(path: Path, rule_id: str, status: str) -> None:
     _mutate_and_persist(path, _apply)
 
 
-def set_bug_status(path: Path, bug_id: str, status: str) -> None:
+def set_bug_status(path: Path, bug_id: str, status: str, require_rule_status: bool = True) -> None:
     if status not in BUG_STATUSES:
         raise EditError(
             code="invalid",
@@ -126,10 +128,10 @@ def set_bug_status(path: Path, bug_id: str, status: str) -> None:
                 return
         raise EditError(code="not_found", message=f"bug '{bug_id}' not found")
 
-    _mutate_and_persist(path, _apply)
+    _mutate_and_persist(path, _apply, require_rule_status=require_rule_status)
 
 
-def resolve_finding(path: Path, rule_qid: str) -> None:
+def resolve_finding(path: Path, rule_qid: str, require_rule_status: bool = True) -> None:
     """Remove the <finding rule=rule_qid>; if the parent <ui_review> has no
     findings left, set its status to ✅."""
 
@@ -149,4 +151,4 @@ def resolve_finding(path: Path, rule_qid: str) -> None:
                 return
         raise EditError(code="not_found", message=f"finding for rule '{rule_qid}' not found")
 
-    _mutate_and_persist(path, _apply)
+    _mutate_and_persist(path, _apply, require_rule_status=require_rule_status)

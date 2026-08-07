@@ -105,3 +105,58 @@ def test_index_with_status_dir(prd_dir: Path, tmp_path: Path) -> None:
     assert first["stats"]["rules_done"] == 1
     assert first["stats"]["rules_total"] == 1
 
+
+def test_set_rule_status_overlay_updates_toml(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    ops = DashboardOps(prd_dir, status_dir)
+    
+    # Set status
+    ops.set_rule_status("alpha", "first", "hello", "❌")
+    
+    # TOML should be created
+    toml_path = status_dir / "alpha" / "first.toml"
+    assert toml_path.exists()
+    content = toml_path.read_text(encoding="utf-8")
+    assert "[rules]" in content
+    assert '"R1.hello" = "❌"' in content
+    
+    # XML should remain unchanged
+    xml_path = prd_dir / "alpha" / "first.xml"
+    xml_content = xml_path.read_text(encoding="utf-8")
+    assert VALID_MINIMAL == xml_content
+
+def test_set_rule_status_overlay_preserves_other_sections(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    status_dir.mkdir()
+    (status_dir / "alpha").mkdir()
+    toml_path = status_dir / "alpha" / "first.toml"
+    toml_path.write_text(
+        '[rules]\n"R1.other" = "❌"\n\n[notes]\n"R1.other" = "test note"\n\n[[platform_rule]]\nid = "ios"\nstatus = "✅"\n',
+        encoding="utf-8"
+    )
+    
+    ops = DashboardOps(prd_dir, status_dir)
+    ops.set_rule_status("alpha", "first", "hello", "✅")
+    
+    content = toml_path.read_text(encoding="utf-8")
+    # Both rules should be present
+    assert '"R1.hello" = "✅"' in content
+    assert '"R1.other" = "❌"' in content
+    # Notes preserved
+    assert '"R1.other" = "test note"' in content
+    # Platform rule preserved
+    assert 'id = "ios"' in content
+
+def test_set_rule_status_overlay_unknown_rule_raises(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    ops = DashboardOps(prd_dir, status_dir)
+    with pytest.raises(OpsError) as ei:
+        ops.set_rule_status("alpha", "first", "bogus_rule", "✅")
+    assert ei.value.code == "not_found"
+
+def test_set_rule_status_overlay_invalid_status(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    ops = DashboardOps(prd_dir, status_dir)
+    with pytest.raises(OpsError) as ei:
+        ops.set_rule_status("alpha", "first", "hello", "bogus")
+    assert ei.value.code == "invalid"
