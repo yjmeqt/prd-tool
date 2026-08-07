@@ -355,10 +355,11 @@ def main() -> None:
         sys.exit(0)
 
     elif args.command == "stats":
-        if args.ref is None:
-            from prd_tool.root import find_root
+        from prd_tool.overlay import OverlayError, load_progress, overlay_path
+        from prd_tool.root import find_root
 
-            root = find_root()
+        root = find_root()
+        if args.ref is None:
             if root is None:
                 print(
                     "prd stats: no ref given and no PRD root found from cwd",
@@ -369,9 +370,24 @@ def main() -> None:
             if not path.is_file():
                 print(f"prd stats: {path} does not exist", file=sys.stderr)
                 sys.exit(1)
+            # index.xml will handle its own children's progress inside print_stats
+            sys.exit(print_stats(path, unfinished_only=args.unfinished, progress=None))
         else:
             path = _resolve_or_exit(args.ref)
-        sys.exit(print_stats(path, unfinished_only=args.unfinished))
+            progress = None
+            if root and root.status_dir and path.name != "index.xml":
+                try:
+                    rel_path = path.relative_to(root.prd_dir)
+                    feature = rel_path.with_suffix("").name
+                    mod = rel_path.parent.name
+                    op = overlay_path(root.status_dir, mod, feature)
+                    progress = load_progress(op)
+                except ValueError:
+                    pass
+                except OverlayError as e:
+                    print(f"Overlay error for {path}: {e}", file=sys.stderr)
+                    sys.exit(1)
+            sys.exit(print_stats(path, unfinished_only=args.unfinished, progress=progress))
 
     elif args.command == "root":
         from prd_tool.root import find_root
@@ -403,6 +419,7 @@ def main() -> None:
             sys.exit(1)
         import xml.etree.ElementTree as ET
 
+        from prd_tool.overlay import OverlayError, load_progress, overlay_path
         from prd_tool.stats import has_unfinished_work
 
         refs: list[str] = []
@@ -416,7 +433,19 @@ def main() -> None:
                 except (ET.ParseError, OSError):
                     refs.append(str(rel.with_suffix("")))
                     continue
-                if sub_root.tag != "prd" or not has_unfinished_work(sub_root):
+
+                progress = None
+                if root.status_dir:
+                    feature = rel.with_suffix("").name
+                    mod = rel.parent.name
+                    op = overlay_path(root.status_dir, mod, feature)
+                    try:
+                        progress = load_progress(op)
+                    except OverlayError as e:
+                        print(f"Overlay error for {xml}: {e}", file=sys.stderr)
+                        sys.exit(1)
+
+                if sub_root.tag != "prd" or not has_unfinished_work(sub_root, progress):
                     continue
             refs.append(str(rel.with_suffix("")))
         if refs:
