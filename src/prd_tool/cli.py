@@ -60,7 +60,7 @@ def _run_native_view(refs: list[str], detach: bool) -> None:
 
     from prd_tool.dashboard.native import run_native
 
-    run_native(root.prd_dir, refs)
+    run_native(root.prd_dir, refs, status_dir=root.status_dir)
 
 
 def _respawn_detached(prd_dir: Path) -> None:
@@ -157,7 +157,7 @@ def _run_server_view(args: argparse.Namespace) -> None:
 
     from prd_tool.dashboard.server import create_app
 
-    app = create_app(root.prd_dir)
+    app = create_app(root.prd_dir, status_dir=root.status_dir)
 
     url = f"http://{args.host}:{args.port}"
     print(f"Dashboard at {url}  (PRD root: {root.prd_dir})")

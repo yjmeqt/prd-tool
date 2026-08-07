@@ -70,3 +70,38 @@ def test_asset_path_missing_module_raises(prd_dir: Path) -> None:
     with pytest.raises(OpsError) as ei:
         ops.asset_path("nope", "first", "anything.png")
     assert ei.value.code == "not_found"
+
+def test_feature_with_status_dir(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    status_dir.mkdir()
+    (status_dir / "alpha").mkdir()
+    (status_dir / "alpha" / "first.toml").write_text(
+        "[rules]\n\"R1.hello\" = \"✅\"\n", encoding="utf-8"
+    )
+    
+    ops = DashboardOps(prd_dir, status_dir)
+    feat = ops.feature("alpha", "first")
+    
+    # Check rule status is joined from progress
+    r1 = feat["requirements"][0]
+    rule = r1["rules"][0]
+    assert rule["id"] == "hello"
+    assert rule["status"] == "✅"
+
+def test_index_with_status_dir(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    status_dir.mkdir()
+    (status_dir / "alpha").mkdir()
+    (status_dir / "alpha" / "first.toml").write_text(
+        "[rules]\n\"R1.hello\" = \"✅\"\n", encoding="utf-8"
+    )
+    
+    ops = DashboardOps(prd_dir, status_dir)
+    idx = ops.index()
+    
+    alpha = next(m for m in idx["modules"] if m["name"] == "alpha")
+    first = next(f for f in alpha["features"] if f["feature"] == "first")
+    
+    assert first["stats"]["rules_done"] == 1
+    assert first["stats"]["rules_total"] == 1
+

@@ -30,14 +30,17 @@ class OpsError(Exception):
 
 
 class DashboardOps:
-    def __init__(self, prd_dir: Path) -> None:
+    def __init__(self, prd_dir: Path, status_dir: Path | None = None) -> None:
         self.prd_dir = prd_dir
+        self.status_dir = status_dir
 
     def index(self) -> dict[str, Any]:
-        return build_index(self.prd_dir)
+        return build_index(self.prd_dir, self.status_dir)
 
     def feature(self, module: str, feature: str) -> dict[str, Any]:
-        payload = load_feature(self.prd_dir, FeatureRef(module=module, feature=feature))
+        payload = load_feature(
+            self.prd_dir, FeatureRef(module=module, feature=feature), self.status_dir
+        )
         if payload is None:
             raise OpsError("not_found", f"PRD not found: {module}/{feature}")
         return payload

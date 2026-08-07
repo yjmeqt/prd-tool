@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from prd_tool.overlay import OverlayError, Progress, load_progress, overlay_path, rule_status
 from prd_tool.stats import compute_prd_stats
 
 # HTML void elements: self-close in JSON output so dangerouslySetInnerHTML
@@ -63,13 +65,17 @@ def _feature_name_from_xml(path: Path) -> str | None:
     return root.get("name")
 
 
-def build_index(prd_dir: Path) -> dict[str, Any]:
+def build_index(prd_dir: Path, status_dir: Path | None = None) -> dict[str, Any]:
     """Return the index payload: modules and per-feature stats."""
     modules: dict[str, list[dict[str, Any]]] = {}
     for ref, path in list_feature_files(prd_dir):
         try:
             root = ET.parse(path).getroot()
-            stats = compute_prd_stats(root)
+            progress = None
+            if status_dir is not None:
+                with contextlib.suppress(OverlayError):
+                    progress = load_progress(overlay_path(status_dir, ref.module, ref.feature))
+            stats = compute_prd_stats(root, progress=progress)
             name = root.get("name") or ref.feature
             parse_ok = True
         except (ET.ParseError, OSError):
@@ -139,7 +145,9 @@ def _inner_html(elem: ET.Element, exclude_tags: tuple[str, ...] = ()) -> str:
     return "".join(parts).strip()
 
 
-def _rule_to_dict(rule: ET.Element) -> dict[str, Any]:
+def _rule_to_dict(
+    rule: ET.Element, req_id: str, progress: Progress | None = None
+) -> dict[str, Any]:
     figma_nodes = []
     for fn in rule.findall("figma_node"):
         figma_nodes.append(
@@ -149,13 +157,26 @@ def _rule_to_dict(rule: ET.Element) -> dict[str, Any]:
                 "node": fn.get("node", ""),
             }
         )
-    return {
-        "id": rule.get("id", ""),
-        "status": rule.get("status", ""),
+
+    rule_id = rule.get("id", "")
+    if progress is not None:
+        qid = f"{req_id}.{rule_id}"
+        status = rule_status(progress, qid)
+        note = progress.notes.get(qid)
+    else:
+        status = rule.get("status", "")
+        note = None
+
+    d = {
+        "id": rule_id,
+        "status": status,
         "context": rule.get("context"),
         "text": _inner_html(rule, exclude_tags=("figma_node",)),
         "figma_nodes": figma_nodes,
     }
+    if note is not None:
+        d["note"] = note
+    return d
 
 
 def _ui_review_to_dict(ui: ET.Element) -> dict[str, Any]:
@@ -167,14 +188,15 @@ def _ui_review_to_dict(ui: ET.Element) -> dict[str, Any]:
     }
 
 
-def _requirement_to_dict(req: ET.Element) -> dict[str, Any]:
+def _requirement_to_dict(req: ET.Element, progress: Progress | None = None) -> dict[str, Any]:
     desc_el = req.find("description")
     description = _inner_html(desc_el) if desc_el is not None else ""
+    req_id = req.get("id", "")
     return {
-        "id": req.get("id", ""),
+        "id": req_id,
         "name": req.get("name", ""),
         "description": description,
-        "rules": [_rule_to_dict(r) for r in req.findall("rule")],
+        "rules": [_rule_to_dict(r, req_id, progress) for r in req.findall("rule")],
         "ui_reviews": [_ui_review_to_dict(u) for u in req.findall("ui_review")],
     }
 
@@ -197,7 +219,9 @@ def _bug_to_dict(bug: ET.Element) -> dict[str, Any]:
     }
 
 
-def load_feature(prd_dir: Path, ref: FeatureRef) -> dict[str, Any] | None:
+def load_feature(
+    prd_dir: Path, ref: FeatureRef, status_dir: Path | None = None
+) -> dict[str, Any] | None:
     path = prd_dir / ref.module / f"{ref.feature}.xml"
     if not path.is_file():
         return None
@@ -207,6 +231,12 @@ def load_feature(prd_dir: Path, ref: FeatureRef) -> dict[str, Any] | None:
         return {"ref": ref.ref, "parse_error": str(e)}
     if root.tag != "prd":
         return {"ref": ref.ref, "parse_error": f"root is <{root.tag}>, expected <prd>"}
+
+    progress = None
+    if status_dir is not None:
+        with contextlib.suppress(OverlayError):
+            progress = load_progress(overlay_path(status_dir, ref.module, ref.feature))
+
     overview_el = root.find("overview")
     overview = _inner_html(overview_el) if overview_el is not None else ""
     implementations = [
@@ -216,10 +246,11 @@ def load_feature(prd_dir: Path, ref: FeatureRef) -> dict[str, Any] | None:
         }
         for impl in root.findall("implementation")
     ]
-    requirements = [_requirement_to_dict(r) for r in root.findall("requirement")]
+    requirements = [_requirement_to_dict(r, progress) for r in root.findall("requirement")]
     bugs = [_bug_to_dict(b) for b in root.findall("bug")]
-    stats = compute_prd_stats(root)
-    return {
+    stats = compute_prd_stats(root, progress=progress)
+
+    payload = {
         "ref": ref.ref,
         "module": ref.module,
         "feature": ref.feature,
@@ -230,3 +261,13 @@ def load_feature(prd_dir: Path, ref: FeatureRef) -> dict[str, Any] | None:
         "bugs": bugs,
         "stats": stats,
     }
+    if progress is not None and progress.platform_rules:
+        payload["platform_rules"] = [
+            {
+                "id": pr.id,
+                "status": pr.status,
+                "description": pr.description,
+            }
+            for pr in progress.platform_rules
+        ]
+    return payload

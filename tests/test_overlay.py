@@ -12,12 +12,12 @@ from prd_tool.overlay import (
 )
 
 
-def test_overlay_path():
+def test_overlay_path() -> None:
     status_dir = Path("/status")
     assert overlay_path(status_dir, "auth", "login") == Path("/status/auth/login.toml")
 
 
-def test_load_progress_missing_file(tmp_path: Path):
+def test_load_progress_missing_file(tmp_path: Path) -> None:
     path = tmp_path / "missing.toml"
     progress = load_progress(path)
     assert progress.rules == {}
@@ -25,7 +25,7 @@ def test_load_progress_missing_file(tmp_path: Path):
     assert progress.platform_rules == ()
 
 
-def test_load_progress_reads_data(tmp_path: Path):
+def test_load_progress_reads_data(tmp_path: Path) -> None:
     path = tmp_path / "data.toml"
     path.write_text(
         """
@@ -50,7 +50,7 @@ description = "Platform specific"
     )
 
 
-def test_load_progress_reads_android_rule(tmp_path: Path):
+def test_load_progress_reads_android_rule(tmp_path: Path) -> None:
     path = tmp_path / "android.toml"
     path.write_text(
         """
@@ -66,7 +66,7 @@ description = "Android specific"
     )
 
 
-def test_load_progress_invalid_rule_glyph(tmp_path: Path):
+def test_load_progress_invalid_rule_glyph(tmp_path: Path) -> None:
     path = tmp_path / "invalid_rule.toml"
     path.write_text(
         """
@@ -78,7 +78,7 @@ def test_load_progress_invalid_rule_glyph(tmp_path: Path):
         load_progress(path)
 
 
-def test_load_progress_invalid_platform_rule_glyph(tmp_path: Path):
+def test_load_progress_invalid_platform_rule_glyph(tmp_path: Path) -> None:
     path = tmp_path / "invalid_platform.toml"
     path.write_text(
         """
@@ -91,7 +91,7 @@ status = "INVALID"
         load_progress(path)
 
 
-def test_load_progress_ignores_unknown_tables(tmp_path: Path):
+def test_load_progress_ignores_unknown_tables(tmp_path: Path) -> None:
     path = tmp_path / "unknown.toml"
     path.write_text(
         """
@@ -113,7 +113,7 @@ foo = "bar"
     assert progress.rules == {"R1.1": "✅"}
 
 
-def test_rule_status():
+def test_rule_status() -> None:
     progress = Progress(rules={"R1.1": "✅", "R1.2": "⚠️"}, notes={})
     assert rule_status(progress, "R1.1") == "✅"
     assert rule_status(progress, "R1.2") == "⚠️"
