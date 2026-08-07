@@ -112,7 +112,7 @@ def create_app(prd_dir: Path, status_dir: Path | None = None) -> FastAPI:
     @app.get("/api/events")
     def events() -> StreamingResponse:
         return StreamingResponse(
-            sse_stream(prd_dir),
+            sse_stream(prd_dir, status_dir),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )

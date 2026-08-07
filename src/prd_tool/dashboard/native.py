@@ -235,7 +235,11 @@ def run_native(prd_dir: Path, refs: list[str], status_dir: Path | None = None) -
         try:
             from watchfiles import watch
 
-            for _changes in watch(prd_dir):
+            paths_to_watch = [prd_dir]
+            if status_dir is not None:
+                paths_to_watch.append(status_dir)
+
+            for _changes in watch(*paths_to_watch):
                 _on_change()
         except Exception as e:
             print(f"prd view: file watcher stopped: {e}", file=sys.stderr)

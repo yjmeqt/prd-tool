@@ -37,6 +37,17 @@ def test_classify_feature_change(tmp_path: Path) -> None:
         "path": "m/f.xml",
     }
 
+def test_classify_status_change(tmp_path: Path) -> None:
+    prd_dir = tmp_path / "prd"
+    status_dir = tmp_path / "prd-status"
+    (status_dir / "m").mkdir(parents=True)
+    p = status_dir / "m" / "f.toml"
+    p.write_text("[rules]\n", encoding="utf-8")
+    assert classify_event(prd_dir, Change.modified, p, status_dir) == {
+        "type": "prd_changed",
+        "path": "m/f.xml",
+    }
+
 
 def test_classify_invalid_xml(tmp_path: Path) -> None:
     prd_dir = tmp_path / "prd"
