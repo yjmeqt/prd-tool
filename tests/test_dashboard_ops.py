@@ -166,3 +166,33 @@ def test_set_rule_status_overlay_invalid_status(prd_dir: Path, tmp_path: Path) -
     with pytest.raises(OpsError) as ei:
         ops.set_rule_status("alpha", "first", "hello", "bogus")
     assert ei.value.code == "invalid"
+
+
+def test_feature_with_namespaced_platform(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    (status_dir / "ios" / "alpha").mkdir(parents=True)
+    (status_dir / "ios" / "alpha" / "first.toml").write_text(
+        '[rules]\n"R1.hello" = "✅"\n', encoding="utf-8"
+    )
+    (status_dir / "android" / "alpha").mkdir(parents=True)
+    (status_dir / "android" / "alpha" / "first.toml").write_text(
+        '[rules]\n"R1.hello" = "❌"\n', encoding="utf-8"
+    )
+
+    ios_ops = DashboardOps(prd_dir, status_dir, platform="ios")
+    assert ios_ops.feature("alpha", "first")["requirements"][0]["rules"][0]["status"] == "✅"
+    assert ios_ops.feature("alpha", "first")["status_platform"] == "ios"
+
+    android_ops = DashboardOps(prd_dir, status_dir, platform="android")
+    assert android_ops.feature("alpha", "first")["requirements"][0]["rules"][0]["status"] == "❌"
+
+
+def test_set_rule_status_writes_under_platform(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    ops = DashboardOps(prd_dir, status_dir, platform="ios")
+    ops.set_rule_status("alpha", "first", "hello", "❌")
+
+    ios_path = status_dir / "ios" / "alpha" / "first.toml"
+    assert ios_path.is_file()
+    assert '"R1.hello" = "❌"' in ios_path.read_text(encoding="utf-8")
+    assert not (status_dir / "alpha" / "first.toml").exists()

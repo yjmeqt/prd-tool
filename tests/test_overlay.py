@@ -15,6 +15,7 @@ from prd_tool.overlay import (
 def test_overlay_path() -> None:
     status_dir = Path("/status")
     assert overlay_path(status_dir, "auth", "login") == Path("/status/auth/login.toml")
+    assert overlay_path(status_dir, "auth", "login", "ios") == Path("/status/ios/auth/login.toml")
 
 
 def test_load_progress_missing_file(tmp_path: Path) -> None:

@@ -36,9 +36,11 @@ def _ops_error_to_http(err: OpsError) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": err.code, "message": err.message})
 
 
-def create_app(prd_dir: Path, status_dir: Path | None = None) -> FastAPI:
+def create_app(
+    prd_dir: Path, status_dir: Path | None = None, platform: str | None = None
+) -> FastAPI:
     app = FastAPI(title="prd-tool dashboard")
-    ops = DashboardOps(prd_dir, status_dir)
+    ops = DashboardOps(prd_dir, status_dir, platform)
 
     @app.get("/api/index")
     def get_index() -> dict[str, Any]:

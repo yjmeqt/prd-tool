@@ -71,7 +71,9 @@ def _feature_name_from_xml(path: Path) -> str | None:
     return root.get("name")
 
 
-def build_index(prd_dir: Path, status_dir: Path | None = None) -> dict[str, Any]:
+def build_index(
+    prd_dir: Path, status_dir: Path | None = None, platform: str | None = None
+) -> dict[str, Any]:
     """Return the index payload: modules and per-feature stats."""
     modules: dict[str, list[dict[str, Any]]] = {}
     for ref, path in list_feature_files(prd_dir):
@@ -80,7 +82,9 @@ def build_index(prd_dir: Path, status_dir: Path | None = None) -> dict[str, Any]
             progress = None
             if status_dir is not None:
                 with contextlib.suppress(OverlayError):
-                    progress = load_progress(overlay_path(status_dir, ref.module, ref.feature))
+                    progress = load_progress(
+                        overlay_path(status_dir, ref.module, ref.feature, platform)
+                    )
             stats = compute_prd_stats(root, progress=progress)
             name = root.get("name") or ref.feature
             parse_ok = True
@@ -226,7 +230,10 @@ def _bug_to_dict(bug: ET.Element) -> dict[str, Any]:
 
 
 def load_feature(
-    prd_dir: Path, ref: FeatureRef, status_dir: Path | None = None
+    prd_dir: Path,
+    ref: FeatureRef,
+    status_dir: Path | None = None,
+    platform: str | None = None,
 ) -> dict[str, Any] | None:
     path = prd_dir / ref.module / f"{ref.feature}.xml"
     if not path.is_file():
@@ -241,7 +248,7 @@ def load_feature(
     progress = None
     if status_dir is not None:
         with contextlib.suppress(OverlayError):
-            progress = load_progress(overlay_path(status_dir, ref.module, ref.feature))
+            progress = load_progress(overlay_path(status_dir, ref.module, ref.feature, platform))
 
     overview_el = root.find("overview")
     overview = _inner_html(overview_el) if overview_el is not None else ""
@@ -256,7 +263,7 @@ def load_feature(
     bugs = [_bug_to_dict(b) for b in root.findall("bug")]
     stats = compute_prd_stats(root, progress=progress)
 
-    payload = {
+    payload: dict[str, Any] = {
         "ref": ref.ref,
         "module": ref.module,
         "feature": ref.feature,
@@ -267,6 +274,8 @@ def load_feature(
         "bugs": bugs,
         "stats": stats,
     }
+    if platform is not None:
+        payload["status_platform"] = platform
     if progress is not None and progress.platform_rules:
         payload["platform_rules"] = [
             {

@@ -138,8 +138,12 @@ When `prd-status/` (or `status_dir`) exists in the workspace, rule progress live
 - Detail XML may omit rule `status`.
 - Glyphs used in TOML: `✅` / `⚠️` / `❌`. A missing key is treated as `❌`.
 - Progress TOML shape: `[rules]`, `[notes]`, and `[[platform_rule]]` tables only. Bugs and UI reviews are **not** in the progress overlay (they stay in the XML for now, or move to platform-local later).
-- `prd migrate-status` can be used to extract rule status from XML into TOML.
-- **Do not write rule status back into XML when overlay mode is active.** Instead, update the corresponding `module/feature.toml` file under the status directory.
+- **Layouts:**
+  - Flat (legacy): `prd-status/<module>/<feature>.toml`
+  - Namespaced (multi-platform): `prd-status/<platform>/<module>/<feature>.toml` (e.g. `ios`, `android`)
+- **Platform selection** (namespaced only): `--platform` → `PRD_PLATFORM` → `[prd].platform` in `.prd-tool.toml`. Missing selection is an error — never silently pick a platform. Use `prd stats --all-platforms` to compare.
+- `prd migrate-status` extracts rule status from XML into TOML (namespaced layout requires `--platform`, suggested: `ios` for historical extraction).
+- **Do not write rule status back into XML when overlay mode is active.** Instead, update the corresponding TOML under the status directory (under the selected platform when namespaced).
 
 ## Rich Content (XHTML)
 

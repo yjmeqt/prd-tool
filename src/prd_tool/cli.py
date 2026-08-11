@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from prd_tool.format import format_prd
-from prd_tool.root import resolve_ref
+from prd_tool.root import PlatformError, resolve_ref
 from prd_tool.stats import print_stats
 from prd_tool.validate import validate
 
@@ -30,10 +30,36 @@ def _require_rule_status() -> bool:
     return root.status_dir is None if root is not None else True
 
 
+def _add_platform_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--platform",
+        default=None,
+        help="Progress overlay platform (ios/android/…). "
+        "Overrides PRD_PLATFORM and [prd].platform. "
+        "Required when status_dir uses a namespaced layout.",
+    )
+
+
+def _resolve_platform_or_exit(
+    root: object,
+    *,
+    cli_platform: str | None,
+    all_platforms: bool = False,
+) -> str | None:
+    from prd_tool.root import Root, resolve_platform
+
+    assert isinstance(root, Root)
+    try:
+        return resolve_platform(root, cli_platform=cli_platform, all_platforms=all_platforms)
+    except PlatformError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
+
+
 _DETACH_SENTINEL_ENV = "_PRD_VIEW_DETACHED"
 
 
-def _run_native_view(refs: list[str], detach: bool) -> None:
+def _run_native_view(refs: list[str], detach: bool, platform: str | None) -> None:
     from prd_tool.root import find_root
 
     root = find_root()
@@ -48,6 +74,8 @@ def _run_native_view(refs: list[str], detach: bool) -> None:
         )
         sys.exit(1)
 
+    resolved_platform = _resolve_platform_or_exit(root, cli_platform=platform)
+
     # When --detach (default) is requested and we are not already the detached
     # child, spawn a fresh subprocess in its own session and exit. Doing this
     # with subprocess.Popen + start_new_session is reliable on macOS;
@@ -60,7 +88,7 @@ def _run_native_view(refs: list[str], detach: bool) -> None:
 
     from prd_tool.dashboard.native import run_native
 
-    run_native(root.prd_dir, refs, status_dir=root.status_dir)
+    run_native(root.prd_dir, refs, status_dir=root.status_dir, platform=resolved_platform)
 
 
 def _respawn_detached(prd_dir: Path) -> None:
@@ -127,6 +155,8 @@ def _run_server_view(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
+    platform = _resolve_platform_or_exit(root, cli_platform=getattr(args, "platform", None))
+
     import socket
 
     import uvicorn
@@ -157,7 +187,7 @@ def _run_server_view(args: argparse.Namespace) -> None:
 
     from prd_tool.dashboard.server import create_app
 
-    app = create_app(root.prd_dir, status_dir=root.status_dir)
+    app = create_app(root.prd_dir, status_dir=root.status_dir, platform=platform)
 
     url = f"http://{args.host}:{args.port}"
     print(f"Dashboard at {url}  (PRD root: {root.prd_dir})")
@@ -240,6 +270,12 @@ def main() -> None:
         action="store_true",
         help="Restrict per-feature rows to features with unfinished rules or non-Fixed bugs",
     )
+    _add_platform_arg(stats_parser)
+    stats_parser.add_argument(
+        "--all-platforms",
+        action="store_true",
+        help="Print stats for every platform under a namespaced status_dir",
+    )
 
     sub.add_parser("root", help="Print the resolved PRD root (debugging)")
 
@@ -251,6 +287,12 @@ def main() -> None:
         action="store_true",
         help="List only refs with unfinished work (rules not ✅, or bugs not Fixed)",
     )
+    _add_platform_arg(ls_parser)
+    ls_parser.add_argument(
+        "--all-platforms",
+        action="store_true",
+        help="With -u, include a ref if unfinished on any platform",
+    )
 
     export_parser = sub.add_parser(
         "export-json",
@@ -260,6 +302,7 @@ def main() -> None:
         "out",
         help="Output directory; will contain index.json, prd/<m>/<f>.json, asset/<m>/...",
     )
+    _add_platform_arg(export_parser)
 
     migrate_parser = sub.add_parser(
         "migrate-status",
@@ -270,6 +313,7 @@ def main() -> None:
         action="store_true",
         help="Do not write any files, just print summary",
     )
+    _add_platform_arg(migrate_parser)
 
     index_parser = sub.add_parser(
         "index",
@@ -323,6 +367,7 @@ def main() -> None:
         help="(--server only) Override the interactive-terminal requirement "
         "(also: PRD_DASHBOARD_ALLOW_NO_TTY=1)",
     )
+    _add_platform_arg(view_parser)
 
     # Hidden deprecated alias for one release.
     dash_alias = sub.add_parser("dashboard", help=argparse.SUPPRESS)
@@ -330,6 +375,7 @@ def main() -> None:
     dash_alias.add_argument("--port", type=int, default=8765)
     dash_alias.add_argument("--no-open", action="store_true")
     dash_alias.add_argument("--allow-no-tty", action="store_true")
+    _add_platform_arg(dash_alias)
 
     args = parser.parse_args()
 
@@ -366,9 +412,33 @@ def main() -> None:
 
     elif args.command == "stats":
         from prd_tool.overlay import OverlayError, load_progress, overlay_path
-        from prd_tool.root import find_root
+        from prd_tool.root import find_root, list_status_platforms
 
         root = find_root()
+        all_platforms = bool(args.all_platforms)
+        platform = None
+        platforms: list[str] | None = None
+        if root is not None and root.status_dir is not None:
+            platform = _resolve_platform_or_exit(
+                root, cli_platform=args.platform, all_platforms=all_platforms
+            )
+            if all_platforms:
+                if root.status_layout == "namespaced":
+                    platforms = list_status_platforms(root.status_dir)
+                    if not platforms:
+                        print(
+                            "prd stats --all-platforms: no platform directories found "
+                            f"under {root.status_dir}",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+                else:
+                    print(
+                        "prd stats --all-platforms: status overlay is flat "
+                        "(legacy single-platform); ignoring --all-platforms",
+                        file=sys.stderr,
+                    )
+
         if args.ref is None:
             if root is None:
                 print(
@@ -380,24 +450,43 @@ def main() -> None:
             if not path.is_file():
                 print(f"prd stats: {path} does not exist", file=sys.stderr)
                 sys.exit(1)
-            # index.xml will handle its own children's progress inside print_stats
-            sys.exit(print_stats(path, unfinished_only=args.unfinished, progress=None))
+            sys.exit(
+                print_stats(
+                    path,
+                    unfinished_only=args.unfinished,
+                    progress=None,
+                    status_dir=root.status_dir,
+                    prd_dir=root.prd_dir,
+                    platform=platform,
+                    platforms=platforms,
+                )
+            )
         else:
             path = _resolve_or_exit(args.ref)
             progress = None
-            if root and root.status_dir and path.name != "index.xml":
+            if root and root.status_dir and path.name != "index.xml" and platforms is None:
                 try:
                     rel_path = path.relative_to(root.prd_dir)
                     feature = rel_path.with_suffix("").name
                     mod = rel_path.parent.name
-                    op = overlay_path(root.status_dir, mod, feature)
+                    op = overlay_path(root.status_dir, mod, feature, platform)
                     progress = load_progress(op)
                 except ValueError:
                     pass
                 except OverlayError as e:
                     print(f"Overlay error for {path}: {e}", file=sys.stderr)
                     sys.exit(1)
-            sys.exit(print_stats(path, unfinished_only=args.unfinished, progress=progress))
+            sys.exit(
+                print_stats(
+                    path,
+                    unfinished_only=args.unfinished,
+                    progress=progress,
+                    status_dir=root.status_dir if root else None,
+                    prd_dir=root.prd_dir if root else None,
+                    platform=platform,
+                    platforms=platforms,
+                )
+            )
 
     elif args.command == "root":
         from prd_tool.root import find_root
@@ -417,7 +506,7 @@ def main() -> None:
         sys.exit(0)
 
     elif args.command == "ls":
-        from prd_tool.root import find_root
+        from prd_tool.root import find_root, list_status_platforms
 
         root = find_root()
         if root is None:
@@ -431,6 +520,23 @@ def main() -> None:
 
         from prd_tool.overlay import OverlayError, load_progress, overlay_path
         from prd_tool.stats import has_unfinished_work
+
+        all_platforms = bool(args.all_platforms)
+        platform = _resolve_platform_or_exit(
+            root, cli_platform=args.platform, all_platforms=all_platforms
+        )
+        check_platforms: list[str | None]
+        if all_platforms and root.status_dir and root.status_layout == "namespaced":
+            check_platforms = list(list_status_platforms(root.status_dir))
+            if not check_platforms:
+                print(
+                    "prd ls --all-platforms: no platform directories found "
+                    f"under {root.status_dir}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        else:
+            check_platforms = [platform]
 
         refs: list[str] = []
         for xml in sorted(base.rglob("*.xml")):
@@ -446,18 +552,22 @@ def main() -> None:
                     refs.append(str(rel.with_suffix("")))
                     continue
 
-                progress = None
-                if root.status_dir:
-                    feature = rel.with_suffix("").name
-                    mod = rel.parent.name
-                    op = overlay_path(root.status_dir, mod, feature)
-                    try:
-                        progress = load_progress(op)
-                    except OverlayError as e:
-                        print(f"Overlay error for {xml}: {e}", file=sys.stderr)
-                        sys.exit(1)
-
-                if sub_root.tag != "prd" or not has_unfinished_work(sub_root, progress):
+                unfinished = False
+                for plat in check_platforms:
+                    progress = None
+                    if root.status_dir:
+                        feature = rel.with_suffix("").name
+                        mod = rel.parent.name
+                        op = overlay_path(root.status_dir, mod, feature, plat)
+                        try:
+                            progress = load_progress(op)
+                        except OverlayError as e:
+                            print(f"Overlay error for {xml}: {e}", file=sys.stderr)
+                            sys.exit(1)
+                    if sub_root.tag == "prd" and has_unfinished_work(sub_root, progress):
+                        unfinished = True
+                        break
+                if not unfinished:
                     continue
             refs.append(str(rel.with_suffix("")))
         if refs:
@@ -473,8 +583,9 @@ def main() -> None:
             print("prd export-json: no PRD root found from cwd", file=sys.stderr)
             sys.exit(1)
 
+        platform = _resolve_platform_or_exit(root, cli_platform=args.platform)
         out_dir = Path(args.out).resolve()
-        counts = export_static(root.prd_dir, out_dir, status_dir=root.status_dir)
+        counts = export_static(root.prd_dir, out_dir, status_dir=root.status_dir, platform=platform)
         print(
             f"Exported {counts['features']} feature(s) and {counts['assets']} asset(s) to {out_dir}"
         )
@@ -483,7 +594,7 @@ def main() -> None:
     elif args.command == "migrate-status":
         from prd_tool.migrate_status import migrate_status
 
-        sys.exit(migrate_status(dry_run=args.dry_run))
+        sys.exit(migrate_status(dry_run=args.dry_run, platform=args.platform))
 
     elif args.command == "index":
         from prd_tool.dashboard import search as search_mod
@@ -518,5 +629,5 @@ def main() -> None:
             _run_server_view(args)
             sys.exit(0)
 
-        _run_native_view(args.refs or [], detach=not args.no_detach)
+        _run_native_view(args.refs or [], detach=not args.no_detach, platform=args.platform)
         sys.exit(0)

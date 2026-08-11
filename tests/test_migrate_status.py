@@ -121,3 +121,29 @@ status = "✅"
     assert prog.notes == {"R1.foo": "Some note"}
     assert len(prog.platform_rules) == 1
     assert prog.platform_rules[0].id == "PR1"
+
+
+def test_migrate_status_namespaced_requires_platform(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = setup_repo(tmp_path)
+    (repo / "prd-status" / "ios").mkdir(parents=True)
+    monkeypatch.chdir(repo)
+
+    assert migrate_status(dry_run=False) == 1
+
+
+def test_migrate_status_namespaced_writes_under_platform(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = setup_repo(tmp_path)
+    (repo / "prd-status" / "ios").mkdir(parents=True)
+    monkeypatch.chdir(repo)
+
+    assert migrate_status(dry_run=False, platform="ios") == 0
+
+    op = overlay_path(repo / "prd-status", "mod1", "feat1", "ios")
+    assert op.exists()
+    prog = load_progress(op)
+    assert prog.rules == {"R1.foo": "✅", "R1.bar": "❌"}
+    assert not (repo / "prd-status" / "mod1" / "feat1.toml").exists()

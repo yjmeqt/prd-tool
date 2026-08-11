@@ -72,10 +72,44 @@ def compute_prd_stats(root: ET.Element, progress: "Progress | None" = None) -> d
     }
 
 
+def _load_overlay_progress(
+    status_dir: Path | None,
+    prd_dir: Path | None,
+    target: Path,
+    platform: str | None,
+) -> "Progress | None":
+    if status_dir is None or prd_dir is None:
+        return None
+    from prd_tool.overlay import OverlayError, load_progress, overlay_path
+
+    try:
+        rel_path = target.relative_to(prd_dir)
+    except ValueError:
+        return None
+    feature = rel_path.with_suffix("").name
+    mod = rel_path.parent.name
+    try:
+        return load_progress(overlay_path(status_dir, mod, feature, platform))
+    except OverlayError as e:
+        print(f"Overlay error for {rel_path}: {e}", file=sys.stderr)
+        raise
+
+
 def print_stats(
-    path: Path, unfinished_only: bool = False, progress: "Progress | None" = None
+    path: Path,
+    unfinished_only: bool = False,
+    progress: "Progress | None" = None,
+    *,
+    status_dir: Path | None = None,
+    prd_dir: Path | None = None,
+    platform: str | None = None,
+    platforms: list[str] | None = None,
 ) -> int:
-    """Print stats for a PRD file or a PRD index. Returns exit code."""
+    """Print stats for a PRD file or a PRD index. Returns exit code.
+
+    When ``platforms`` is provided (``--all-platforms``), print a section per
+    platform using the namespaced overlay layout.
+    """
     try:
         tree = ET.parse(path)
     except (ET.ParseError, OSError) as e:
@@ -84,23 +118,40 @@ def print_stats(
 
     root = tree.getroot()
 
+    if platforms:
+        exit_code = 0
+        for plat in platforms:
+            print(f"=== platform: {plat} ===")
+            code = print_stats(
+                path,
+                unfinished_only=unfinished_only,
+                progress=None,
+                status_dir=status_dir,
+                prd_dir=prd_dir,
+                platform=plat,
+            )
+            if code != 0:
+                exit_code = code
+        return exit_code
+
     if root.tag == "prd":
         name = root.get("name", path.name)
-        if unfinished_only and not has_unfinished_work(root, progress):
+        sub_progress = progress
+        if sub_progress is None and status_dir is not None:
+            try:
+                sub_progress = _load_overlay_progress(status_dir, prd_dir, path, platform)
+            except Exception:
+                return 1
+        if unfinished_only and not has_unfinished_work(root, sub_progress):
             return 0
-        stats = compute_prd_stats(root, progress)
+        stats = compute_prd_stats(root, sub_progress)
         print(_format_stats_line(name, stats))
         return 0
 
     if root.tag == "prd_index":
         base = path.parent
         exit_code = 0
-
-        from prd_tool.overlay import OverlayError, load_progress, overlay_path
-        from prd_tool.root import find_root
-
-        prd_root = find_root()
-        status_dir = prd_root.status_dir if prd_root else None
+        effective_prd_dir = prd_dir or base
 
         for module in root.findall("module"):
             module_name = module.get("name", "")
@@ -121,17 +172,12 @@ def print_stats(
                     continue
 
                 sub_progress = None
-                if status_dir and prd_root:
+                if status_dir is not None:
                     try:
-                        rel_path = target.relative_to(prd_root.prd_dir)
-                        feature = rel_path.with_suffix("").name
-                        mod = rel_path.parent.name
-                        op = overlay_path(status_dir, mod, feature)
-                        sub_progress = load_progress(op)
-                    except ValueError:
-                        pass
-                    except OverlayError as e:
-                        print(f"Overlay error for {rel_path}: {e}", file=sys.stderr)
+                        sub_progress = _load_overlay_progress(
+                            status_dir, effective_prd_dir, target, platform
+                        )
+                    except Exception:
                         exit_code = 1
                         continue
 

@@ -33,16 +33,25 @@ class OpsError(Exception):
 
 
 class DashboardOps:
-    def __init__(self, prd_dir: Path, status_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        prd_dir: Path,
+        status_dir: Path | None = None,
+        platform: str | None = None,
+    ) -> None:
         self.prd_dir = prd_dir
         self.status_dir = status_dir
+        self.platform = platform
 
     def index(self) -> dict[str, Any]:
-        return build_index(self.prd_dir, self.status_dir)
+        return build_index(self.prd_dir, self.status_dir, self.platform)
 
     def feature(self, module: str, feature: str) -> dict[str, Any]:
         payload = load_feature(
-            self.prd_dir, FeatureRef(module=module, feature=feature), self.status_dir
+            self.prd_dir,
+            FeatureRef(module=module, feature=feature),
+            self.status_dir,
+            self.platform,
         )
         if payload is None:
             raise OpsError("not_found", f"PRD not found: {module}/{feature}")
@@ -90,7 +99,7 @@ class DashboardOps:
             if not target_qid:
                 raise OpsError("not_found", f"rule '{rule_id}' not found")
 
-            toml_path = overlay_path(self.status_dir, module, feature)
+            toml_path = overlay_path(self.status_dir, module, feature, self.platform)
             try:
                 stat_before = toml_path.stat()
             except OSError:
