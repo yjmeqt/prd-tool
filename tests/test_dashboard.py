@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from prd_tool.dashboard.repo import FeatureRef, build_index, load_feature
+from prd_tool.dashboard.repo import FeatureRef, build_index, list_feature_files, load_feature
 from prd_tool.dashboard.server import create_app
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -23,6 +23,16 @@ def prd_dir(tmp_path: Path) -> Path:
     (d / "beta" / "second.xml").write_text(VALID_MINIMAL, encoding="utf-8")
     (d / "index.xml").write_text("<prd_index></prd_index>", encoding="utf-8")
     return d
+
+
+def test_list_feature_files_skips_dotdir_worktrees(prd_dir: Path) -> None:
+    nest = prd_dir / ".worktrees" / "branch" / "alpha"
+    nest.mkdir(parents=True)
+    (nest / "first.xml").write_text(VALID_MINIMAL, encoding="utf-8")
+
+    refs = {(ref.module, ref.feature) for ref, _ in list_feature_files(prd_dir)}
+
+    assert refs == {("alpha", "first"), ("beta", "second")}
 
 
 def test_build_index_groups_by_module(prd_dir: Path) -> None:
