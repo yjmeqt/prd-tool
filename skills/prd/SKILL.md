@@ -135,12 +135,12 @@ prd stats prd/index.xml   # roll up across all entries
 
 When `prd-status/` (or `status_dir`) exists in the workspace, rule progress lives in TOML files, not the PRD XML. This is the **Overlay mode**.
 
-Shared product PRDs (e.g. **Gist-PRDs**) hold **detail** XML plus per-platform progress under `prd-status/<platform>/…`. App repos (`Gist-iOS`, `Gist-Android`) consume that tree via sibling checkout / `GIST_PRD_DIR` / `detail_dir` — not as a submodule. Specs stay per-platform in the app repos.
+Typical layout: shared **detail** XML plus per-platform progress under `prd-status/<platform>/<module>/<feature>.toml`. Implementation specs stay in per-platform app repos (paths from `<implementation spec="…">`). See `docs/status-overlay.md` for the full design.
 
 - Detail XML may omit rule `status`.
 - Glyphs used in TOML: `✅` / `⚠️` / `❌`. A missing key is treated as `❌`.
-- **Shared multi-platform progress (Gist-PRDs):** `[rules]` only. Do not put `[notes]`, `[[platform_rule]]`, bugs, or UI reviews in the shared overlay.
-- **Tool schema** also allows `[notes]` / `[[platform_rule]]` for platform-local residuals (e.g. Android’s local `prd-status/`). Bugs and UI reviews are **not** part of the shared progress overlay.
+- **Shared multi-platform progress:** `[rules]` only. Do not put `[notes]`, `[[platform_rule]]`, bugs, or UI reviews in the shared overlay.
+- **Tool schema** also allows `[notes]` / `[[platform_rule]]` for platform-local overlays. Bugs and UI reviews are **not** part of the shared progress overlay.
 - **Layouts:**
   - Flat (legacy): `prd-status/<module>/<feature>.toml`
   - Namespaced (multi-platform): `prd-status/<platform>/<module>/<feature>.toml` (e.g. `ios`, `android`)
