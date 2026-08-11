@@ -41,10 +41,16 @@ class FeatureRef:
 
 
 def list_feature_files(prd_dir: Path) -> list[tuple[FeatureRef, Path]]:
-    """Every <module>/<feature>.xml under prd_dir, excluding index.xml."""
+    """Every <module>/<feature>.xml under prd_dir, excluding index.xml.
+
+    Skips any path with a dot-prefixed segment (e.g. ``.worktrees/``, ``.git/``)
+    so nested worktree checkouts are not treated as features.
+    """
     out: list[tuple[FeatureRef, Path]] = []
     for xml in sorted(prd_dir.rglob("*.xml")):
         rel = xml.relative_to(prd_dir)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
         if rel.name == "index.xml":
             continue
         if len(rel.parts) < 2:

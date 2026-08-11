@@ -435,6 +435,8 @@ def main() -> None:
         refs: list[str] = []
         for xml in sorted(base.rglob("*.xml")):
             rel = xml.relative_to(root.prd_dir)
+            if any(part.startswith(".") for part in rel.parts):
+                continue
             if rel.name == "index.xml":
                 continue
             if args.unfinished:
