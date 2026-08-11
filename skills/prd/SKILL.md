@@ -135,14 +135,17 @@ prd stats prd/index.xml   # roll up across all entries
 
 When `prd-status/` (or `status_dir`) exists in the workspace, rule progress lives in TOML files, not the PRD XML. This is the **Overlay mode**.
 
+Shared product PRDs (e.g. **Gist-PRDs**) hold **detail** XML plus per-platform progress under `prd-status/<platform>/…`. App repos (`Gist-iOS`, `Gist-Android`) consume that tree via sibling checkout / `GIST_PRD_DIR` / `detail_dir` — not as a submodule. Specs stay per-platform in the app repos.
+
 - Detail XML may omit rule `status`.
 - Glyphs used in TOML: `✅` / `⚠️` / `❌`. A missing key is treated as `❌`.
-- Progress TOML shape: `[rules]`, `[notes]`, and `[[platform_rule]]` tables only. Bugs and UI reviews are **not** in the progress overlay (they stay in the XML for now, or move to platform-local later).
+- **Shared multi-platform progress (Gist-PRDs):** `[rules]` only. Do not put `[notes]`, `[[platform_rule]]`, bugs, or UI reviews in the shared overlay.
+- **Tool schema** also allows `[notes]` / `[[platform_rule]]` for platform-local residuals (e.g. Android’s local `prd-status/`). Bugs and UI reviews are **not** part of the shared progress overlay.
 - **Layouts:**
   - Flat (legacy): `prd-status/<module>/<feature>.toml`
   - Namespaced (multi-platform): `prd-status/<platform>/<module>/<feature>.toml` (e.g. `ios`, `android`)
-- **Platform selection** (namespaced only): `--platform` → `PRD_PLATFORM` → `[prd].platform` in `.prd-tool.toml`. Missing selection is an error — never silently pick a platform. Use `prd stats --all-platforms` to compare.
-- `prd migrate-status` extracts rule status from XML into TOML (namespaced layout requires `--platform`, suggested: `ios` for historical extraction).
+- **Platform selection** (namespaced only): `--platform` → `PRD_PLATFORM` → `[prd].platform` in `.prd-tool.toml`. Shared repos often omit a default platform — missing selection is an error; never silently pick one. Use `prd stats --platform ios`, `--platform android`, or `--all-platforms`.
+- `prd migrate-status` extracts rule status from XML into TOML (namespaced layout requires `--platform`).
 - **Do not write rule status back into XML when overlay mode is active.** Instead, update the corresponding TOML under the status directory (under the selected platform when namespaced).
 
 ## Rich Content (XHTML)
@@ -396,7 +399,7 @@ UI reviews track visual verification of implemented rules against Figma designs.
 **Content rules for `<finding>`:**
 - Describe what differs visually: layout, spacing, font weight, color, missing/extra elements
 - Reference the Figma state (e.g. "Figma shows single label; implementation has two")
-- Do not include fix instructions or code references — those belong in the iOS spec or implementation plan
+- Do not include fix instructions or code references — those belong in the platform implementation spec or plan
 
 ## PRD Content Rules
 
@@ -417,7 +420,7 @@ PRDs describe **what** the product does — not **how** it is built. Enforce the
 - Pixel-precise measurements or layout constants (e.g. `64×64pt`, `20pt from trailing`)
 - Type annotations on data model fields (e.g. `(Int)`, `(String?)`)
 - Git branch names
-- Architecture or implementation decisions (those belong in the iOS spec)
+- Architecture or implementation decisions (those belong in the platform implementation spec)
 
 ## Implementation Spec Content Rules
 
