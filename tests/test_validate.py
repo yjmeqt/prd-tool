@@ -45,3 +45,40 @@ def test_invalid_ordering() -> None:
 def test_nonexistent_file() -> None:
     errors = validate(Path("/nonexistent/prd.xml"))
     assert any("XML parse error" in e for e in errors)
+
+
+def test_missing_rule_status_overlay_mode(tmp_path: Path) -> None:
+    xml = """<prd name="Minimal Feature">
+<overview>A minimal valid PRD for testing.</overview>
+<requirement id="R1" name="Basic">
+  <description>Basic requirement with one rule.</description>
+  <rule id="hello">Tapping the button shows a greeting.</rule>
+</requirement>
+</prd>"""
+    prd_file = tmp_path / "prd.xml"
+    prd_file.write_text(xml)
+
+    # 1. Missing rule status + require_rule_status=False -> no errors
+    errors = validate(prd_file, require_rule_status=False)
+    assert not any("missing required attribute: status" in e for e in errors)
+    assert errors == []
+
+    # 2. Missing rule status + default/True -> errors
+    errors = validate(prd_file)
+    assert any("missing required attribute: status" in e for e in errors)
+
+
+def test_invalid_rule_status_overlay_mode(tmp_path: Path) -> None:
+    xml = """<prd name="Minimal Feature">
+<overview>A minimal valid PRD for testing.</overview>
+<requirement id="R1" name="Basic">
+  <description>Basic requirement with one rule.</description>
+  <rule id="hello" status="DONE">Tapping the button shows a greeting.</rule>
+</requirement>
+</prd>"""
+    prd_file = tmp_path / "prd.xml"
+    prd_file.write_text(xml)
+
+    # 3. status="DONE" + require_rule_status=False -> invalid glyph error
+    errors = validate(prd_file, require_rule_status=False)
+    assert any("invalid status 'DONE'" in e for e in errors)

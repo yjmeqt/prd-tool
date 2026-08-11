@@ -131,6 +131,16 @@ prd stats prd/index.xml   # roll up across all entries
 
 **IDs are permanent:** Never rename or reuse a rule ID or bug ID. Bugs, specs, and conversation history reference them.
 
+## Overlay Mode (Status Directory)
+
+When `prd-status/` (or `status_dir`) exists in the workspace, rule progress lives in TOML files, not the PRD XML. This is the **Overlay mode**.
+
+- Detail XML may omit rule `status`.
+- Glyphs used in TOML: `✅` / `⚠️` / `❌`. A missing key is treated as `❌`.
+- Progress TOML shape: `[rules]`, `[notes]`, and `[[platform_rule]]` tables only. Bugs and UI reviews are **not** in the progress overlay (they stay in the XML for now, or move to platform-local later).
+- `prd migrate-status` can be used to extract rule status from XML into TOML.
+- **Do not write rule status back into XML when overlay mode is active.** Instead, update the corresponding `module/feature.toml` file under the status directory.
+
 ## Rich Content (XHTML)
 
 Some text fields may contain inline **XHTML** in addition to plain text. The full spec for this behavior is in `prd/content/rich-content.xml`.
@@ -326,7 +336,7 @@ Rule IDs are **snake_case names** scoped to their parent `<requirement>`:
 ### Rule Attributes
 
 - `id` — required, snake_case name unique within the requirement (e.g. `send_button`)
-- `status` — required, one of: `✅` (implemented), `❌` (not implemented), `⚠️` (partial)
+- `status` — required in legacy mode (optional in overlay mode). One of: `✅` (implemented), `❌` (not implemented), `⚠️` (partial)
 - `context` — optional, the condition or state under which this rule applies (e.g. `"keyboard shown"`, `"no comments exist"`, `"article cards only"`)
 
 ### Content Rules for `<rule>`
@@ -438,8 +448,8 @@ Before any code is written on a given platform, ensure that platform's spec exis
 
 When implementation of a rule is complete:
 
-1. Update the `status` attribute on the `<rule>` to `✅`
-2. Run `prd format prd/<module>/<feature>.xml` to normalize formatting and encode special characters
+1. Update the rule status to `✅`. **Do not write rule status back into XML when overlay mode is active.** Update the corresponding TOML in `prd-status/` instead. If in legacy mode, update the `status` attribute on the XML `<rule>`.
+2. Run `prd format prd/<module>/<feature>.xml` to normalize formatting and encode special characters (if you edited the XML).
 3. Update the sub-tasks table in the spec referenced by the platform's `<implementation spec="…">` with completion status
 
 ## Auto-trigger

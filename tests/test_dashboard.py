@@ -218,3 +218,55 @@ def test_asset_endpoint_missing_module_is_404(rich_prd_dir: Path) -> None:
     client = TestClient(create_app(rich_prd_dir))
     r = client.get("/api/prd-asset/ghost/feat/x.png")
     assert r.status_code == 404
+
+
+def test_load_feature_with_status_dir(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    status_dir.mkdir()
+    (status_dir / "alpha").mkdir()
+    (status_dir / "alpha" / "first.toml").write_text(
+        '[rules]\n"R1.hello" = "✅"\n\n[notes]\n"R1.hello" = "done via overlay"\n', encoding="utf-8"
+    )
+
+    payload = load_feature(prd_dir, FeatureRef("alpha", "first"), status_dir)
+    assert payload is not None
+    req = payload["requirements"][0]
+    rule = req["rules"][0]
+    assert rule["id"] == "hello"
+    assert rule["status"] == "✅"
+    assert rule["note"] == "done via overlay"
+
+
+def test_build_index_with_status_dir(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    status_dir.mkdir()
+    (status_dir / "alpha").mkdir()
+    (status_dir / "alpha" / "first.toml").write_text(
+        '[rules]\n"R1.hello" = "✅"\n', encoding="utf-8"
+    )
+
+    payload = build_index(prd_dir, status_dir)
+    alpha = next(m for m in payload["modules"] if m["name"] == "alpha")
+    first = next(f for f in alpha["features"] if f["feature"] == "first")
+
+    assert first["stats"]["rules_done"] == 1
+    assert first["stats"]["rules_total"] == 1
+
+
+def test_load_feature_with_platform_rules(prd_dir: Path, tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    status_dir.mkdir()
+    (status_dir / "alpha").mkdir()
+    (status_dir / "alpha" / "first.toml").write_text(
+        '[[platform_rule]]\nid = "P1"\nstatus = "✅"\ndescription = "Platform specific rule"\n',
+        encoding="utf-8",
+    )
+
+    payload = load_feature(prd_dir, FeatureRef("alpha", "first"), status_dir)
+    assert payload is not None
+    assert "platform_rules" in payload
+    assert len(payload["platform_rules"]) == 1
+    pr = payload["platform_rules"][0]
+    assert pr["id"] == "P1"
+    assert pr["status"] == "✅"
+    assert pr["description"] == "Platform specific rule"

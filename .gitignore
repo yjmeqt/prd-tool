@@ -23,3 +23,6 @@ src/prd_tool/dashboard/static/index.native.html
 
 # Playwright MCP scratch output
 .playwright-mcp/
+
+# Git worktrees (superpowers)
+.worktrees/

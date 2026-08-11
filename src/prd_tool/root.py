@@ -5,7 +5,7 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 Source = Literal["toml", "convention"]
 
@@ -15,6 +15,7 @@ class Root:
     repo_root: Path
     prd_dir: Path
     source: Source
+    status_dir: Path | None = None
 
 
 def find_root(start: Path | None = None) -> Root | None:
@@ -29,11 +30,17 @@ def find_root(start: Path | None = None) -> Root | None:
     for ancestor in [here, *here.parents]:
         toml = ancestor / ".prd-tool.toml"
         if toml.is_file():
-            prd_dir_rel = _read_prd_dir(toml)
+            try:
+                data = tomllib.loads(toml.read_text(encoding="utf-8"))
+            except tomllib.TOMLDecodeError:
+                data = {}
+
+            prd_dir_rel = _read_prd_dir(data)
             return Root(
                 repo_root=ancestor,
                 prd_dir=(ancestor / prd_dir_rel).resolve(),
                 source="toml",
+                status_dir=_resolve_status_dir(ancestor, data),
             )
 
         index = ancestor / "prd" / "index.xml"
@@ -42,22 +49,36 @@ def find_root(start: Path | None = None) -> Root | None:
                 repo_root=ancestor,
                 prd_dir=ancestor / "prd",
                 source="convention",
+                status_dir=_resolve_status_dir(ancestor, None),
             )
 
     return None
 
 
-def _read_prd_dir(toml_path: Path) -> str:
-    try:
-        data = tomllib.loads(toml_path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError:
-        return "prd"
-    section = data.get("prd")
+def _read_prd_dir(toml_data: dict[str, Any]) -> str:
+    section = toml_data.get("prd")
     if isinstance(section, dict):
         value = section.get("dir")
         if isinstance(value, str) and value:
             return value
     return "prd"
+
+
+def _resolve_status_dir(repo_root: Path, toml_data: dict[str, Any] | None) -> Path | None:
+    if toml_data is not None:
+        section = toml_data.get("prd")
+        if isinstance(section, dict):
+            value = section.get("status_dir")
+            if isinstance(value, str) and value:
+                candidate = (repo_root / value).resolve()
+                if candidate.is_dir():
+                    return candidate
+
+    fallback = (repo_root / "prd-status").resolve()
+    if fallback.is_dir():
+        return fallback
+
+    return None
 
 
 def resolve_ref(ref: str, *, start: Path | None = None) -> Path:

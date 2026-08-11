@@ -22,6 +22,14 @@ def _resolve_or_exit(ref: str) -> Path:
         sys.exit(1)
 
 
+def _require_rule_status() -> bool:
+    """False when a progress overlay dir is present (rule status lives in TOML)."""
+    from prd_tool.root import find_root
+
+    root = find_root()
+    return root.status_dir is None if root is not None else True
+
+
 _DETACH_SENTINEL_ENV = "_PRD_VIEW_DETACHED"
 
 
@@ -52,7 +60,7 @@ def _run_native_view(refs: list[str], detach: bool) -> None:
 
     from prd_tool.dashboard.native import run_native
 
-    run_native(root.prd_dir, refs)
+    run_native(root.prd_dir, refs, status_dir=root.status_dir)
 
 
 def _respawn_detached(prd_dir: Path) -> None:
@@ -149,7 +157,7 @@ def _run_server_view(args: argparse.Namespace) -> None:
 
     from prd_tool.dashboard.server import create_app
 
-    app = create_app(root.prd_dir)
+    app = create_app(root.prd_dir, status_dir=root.status_dir)
 
     url = f"http://{args.host}:{args.port}"
     print(f"Dashboard at {url}  (PRD root: {root.prd_dir})")
@@ -253,6 +261,16 @@ def main() -> None:
         help="Output directory; will contain index.json, prd/<m>/<f>.json, asset/<m>/...",
     )
 
+    migrate_parser = sub.add_parser(
+        "migrate-status",
+        help="Extract rule progress into TOML files and strip XML status attributes",
+    )
+    migrate_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Do not write any files, just print summary",
+    )
+
     index_parser = sub.add_parser(
         "index",
         help="Build the hybrid search index (lexical + local embeddings) for the viewer",
@@ -317,7 +335,7 @@ def main() -> None:
 
     if args.command == "validate":
         path = _resolve_or_exit(args.ref)
-        errors = validate(path)
+        errors = validate(path, require_rule_status=_require_rule_status())
         if errors:
             print(f"Validation failed with {len(errors)} error(s):\n")
             for i, err in enumerate(errors, 1):
@@ -337,7 +355,7 @@ def main() -> None:
             print(f"Not formatted: {path}", file=sys.stderr)
             sys.exit(1)
         path.write_text(formatted, encoding="utf-8")
-        errors = validate(path)
+        errors = validate(path, require_rule_status=_require_rule_status())
         if errors:
             print(f"Formatted but validation found {len(errors)} error(s):")
             for i, err in enumerate(errors, 1):
@@ -347,10 +365,11 @@ def main() -> None:
         sys.exit(0)
 
     elif args.command == "stats":
-        if args.ref is None:
-            from prd_tool.root import find_root
+        from prd_tool.overlay import OverlayError, load_progress, overlay_path
+        from prd_tool.root import find_root
 
-            root = find_root()
+        root = find_root()
+        if args.ref is None:
             if root is None:
                 print(
                     "prd stats: no ref given and no PRD root found from cwd",
@@ -361,9 +380,24 @@ def main() -> None:
             if not path.is_file():
                 print(f"prd stats: {path} does not exist", file=sys.stderr)
                 sys.exit(1)
+            # index.xml will handle its own children's progress inside print_stats
+            sys.exit(print_stats(path, unfinished_only=args.unfinished, progress=None))
         else:
             path = _resolve_or_exit(args.ref)
-        sys.exit(print_stats(path, unfinished_only=args.unfinished))
+            progress = None
+            if root and root.status_dir and path.name != "index.xml":
+                try:
+                    rel_path = path.relative_to(root.prd_dir)
+                    feature = rel_path.with_suffix("").name
+                    mod = rel_path.parent.name
+                    op = overlay_path(root.status_dir, mod, feature)
+                    progress = load_progress(op)
+                except ValueError:
+                    pass
+                except OverlayError as e:
+                    print(f"Overlay error for {path}: {e}", file=sys.stderr)
+                    sys.exit(1)
+            sys.exit(print_stats(path, unfinished_only=args.unfinished, progress=progress))
 
     elif args.command == "root":
         from prd_tool.root import find_root
@@ -395,6 +429,7 @@ def main() -> None:
             sys.exit(1)
         import xml.etree.ElementTree as ET
 
+        from prd_tool.overlay import OverlayError, load_progress, overlay_path
         from prd_tool.stats import has_unfinished_work
 
         refs: list[str] = []
@@ -408,7 +443,19 @@ def main() -> None:
                 except (ET.ParseError, OSError):
                     refs.append(str(rel.with_suffix("")))
                     continue
-                if sub_root.tag != "prd" or not has_unfinished_work(sub_root):
+
+                progress = None
+                if root.status_dir:
+                    feature = rel.with_suffix("").name
+                    mod = rel.parent.name
+                    op = overlay_path(root.status_dir, mod, feature)
+                    try:
+                        progress = load_progress(op)
+                    except OverlayError as e:
+                        print(f"Overlay error for {xml}: {e}", file=sys.stderr)
+                        sys.exit(1)
+
+                if sub_root.tag != "prd" or not has_unfinished_work(sub_root, progress):
                     continue
             refs.append(str(rel.with_suffix("")))
         if refs:
@@ -425,11 +472,16 @@ def main() -> None:
             sys.exit(1)
 
         out_dir = Path(args.out).resolve()
-        counts = export_static(root.prd_dir, out_dir)
+        counts = export_static(root.prd_dir, out_dir, status_dir=root.status_dir)
         print(
             f"Exported {counts['features']} feature(s) and {counts['assets']} asset(s) to {out_dir}"
         )
         sys.exit(0)
+
+    elif args.command == "migrate-status":
+        from prd_tool.migrate_status import migrate_status
+
+        sys.exit(migrate_status(dry_run=args.dry_run))
 
     elif args.command == "index":
         from prd_tool.dashboard import search as search_mod
