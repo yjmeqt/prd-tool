@@ -182,3 +182,90 @@ def test_ls_without_unfinished_lists_all(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     refs = sorted(ln for ln in result.stdout.splitlines() if ln)
     assert refs == ["m/a", "m/b"]
+
+
+def _write_overlay_feature(tmp_path: Path) -> Path:
+    """Detail without rule status + namespaced ios/android overlays."""
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    xml = (
+        '<prd name="Login">'
+        '<requirement id="R1" name="x"><description>d</description>'
+        '<rule id="r">todo</rule>'
+        "</requirement></prd>"
+    )
+    feat = tmp_path / "prd" / "auth" / "login.xml"
+    feat.parent.mkdir(parents=True)
+    feat.write_text(xml, encoding="utf-8")
+    (tmp_path / "prd-status" / "ios" / "auth").mkdir(parents=True)
+    (tmp_path / "prd-status" / "ios" / "auth" / "login.toml").write_text(
+        '[rules]\n"R1.r" = "✅"\n', encoding="utf-8"
+    )
+    (tmp_path / "prd-status" / "android" / "auth").mkdir(parents=True)
+    (tmp_path / "prd-status" / "android" / "auth" / "login.toml").write_text(
+        '[rules]\n"R1.r" = "❌"\n', encoding="utf-8"
+    )
+    return feat
+
+
+def test_stats_namespaced_requires_platform(tmp_path: Path) -> None:
+    _write_overlay_feature(tmp_path)
+    result = _run(["stats", "auth/login"], cwd=tmp_path)
+    assert result.returncode == 1
+    assert "requires a platform" in result.stderr
+
+
+def test_stats_namespaced_with_platform(tmp_path: Path) -> None:
+    _write_overlay_feature(tmp_path)
+    result = _run(["stats", "--platform", "ios", "auth/login"], cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert "rules 1/1" in result.stdout
+
+    result_android = _run(["stats", "--platform", "android", "auth/login"], cwd=tmp_path)
+    assert result_android.returncode == 0, result_android.stderr
+    assert "rules 0/1" in result_android.stdout
+
+
+def test_stats_platform_from_env(tmp_path: Path) -> None:
+    _write_overlay_feature(tmp_path)
+    env = {**__import__("os").environ, "PRD_PLATFORM": "ios"}
+    result = subprocess.run(
+        [sys.executable, "-m", "prd_tool", "stats", "auth/login"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "rules 1/1" in result.stdout
+
+
+def test_stats_all_platforms(tmp_path: Path) -> None:
+    _write_overlay_feature(tmp_path)
+    result = _run(["stats", "--all-platforms", "auth/login"], cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert "=== platform: android ===" in result.stdout
+    assert "=== platform: ios ===" in result.stdout
+    assert "rules 1/1" in result.stdout
+    assert "rules 0/1" in result.stdout
+
+
+def test_stats_flat_legacy_still_works(tmp_path: Path) -> None:
+    (tmp_path / ".prd-tool.toml").write_text("", encoding="utf-8")
+    xml = (
+        '<prd name="Login">'
+        '<requirement id="R1" name="x"><description>d</description>'
+        '<rule id="r">todo</rule>'
+        "</requirement></prd>"
+    )
+    feat = tmp_path / "prd" / "auth" / "login.xml"
+    feat.parent.mkdir(parents=True)
+    feat.write_text(xml, encoding="utf-8")
+    (tmp_path / "prd-status" / "auth").mkdir(parents=True)
+    (tmp_path / "prd-status" / "auth" / "login.toml").write_text(
+        '[rules]\n"R1.r" = "✅"\n', encoding="utf-8"
+    )
+
+    result = _run(["stats", "auth/login"], cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert "rules 1/1" in result.stdout

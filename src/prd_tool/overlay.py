@@ -30,7 +30,14 @@ class OverlayError(Exception):
         return self.message
 
 
-def overlay_path(status_dir: Path, module: str, feature: str) -> Path:
+def overlay_path(status_dir: Path, module: str, feature: str, platform: str | None = None) -> Path:
+    """Return the progress TOML path for a feature.
+
+    Flat (legacy): ``<status_dir>/<module>/<feature>.toml``
+    Namespaced:    ``<status_dir>/<platform>/<module>/<feature>.toml``
+    """
+    if platform:
+        return status_dir / platform / module / f"{feature}.toml"
     return status_dir / module / f"{feature}.toml"
 
 

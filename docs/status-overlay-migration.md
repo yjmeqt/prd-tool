@@ -33,14 +33,30 @@ That is wrong for a shared product-requirements repo:
 
 Join at read time (progress): rule text from XML + glyph from overlay (missing rule key → `❌`).
 
-Later, multi-platform progress in the same repo:
+### Multi-platform progress (supported in prd-tool)
+
+When a second platform’s overlay lives in the same repo, use a **namespaced** layout:
 
 ```
 prd-status/ios/<module>/<feature>.toml
 prd-status/android/<module>/<feature>.toml
 ```
 
-**Phase 1 of the repo migration:** flat `prd-status/<module>/<feature>.toml` holding the **rule** statuses currently in XML (historically iOS progress). Split by platform only when a second platform’s overlay also lives in this repo.
+**Layout detection** under `status_dir` (or `prd-status/`):
+
+- **Namespaced** if any immediate child is a known platform name (`ios` / `android`), or is a directory that itself contains a `<module>/<feature>.toml` layout.
+- **Flat (legacy)** if only module dirs with `*.toml` exist (current Gist-PRDs layout). No platform segment.
+
+**Platform selection precedence** (namespaced only; flat ignores platform for paths):
+
+1. CLI `--platform`
+2. Env `PRD_PLATFORM`
+3. `.prd-tool.toml` → `[prd].platform`
+4. If still unset → actionable error (do **not** silently pick a platform)
+
+`prd stats --all-platforms` (and `prd ls -u --all-platforms`) iterate every platform dir. Writes (`set_rule_status`) always target the **selected** platform’s TOML only.
+
+**Phase 1 of the repo migration:** flat `prd-status/<module>/<feature>.toml` holding the **rule** statuses currently in XML (historically iOS progress). Split by platform only when a second platform’s overlay also lives in this repo. Do **not** require Android to relocate its overlay into the shared repo as part of this tool change.
 
 ### Progress overlay format (align with Gist-Android `[rules]`)
 
@@ -186,6 +202,7 @@ Rename can land in the same wave as strip, or immediately after. No submodule po
 - Do **not** keep writing rule status into detail XML once overlay mode is active.
 - Do **not** fold bugs or ui_reviews into the shared progress overlay.
 - Do **not** implement the multi-platform bugs store in Phase 1/2 — only reserve the dimension (definition shared-capable, status per-platform).
+- Multi-platform **progress** overlay paths (`prd-status/<platform>/…`) are supported in **prd-tool**; migrating Android’s overlay into a shared namespaced tree is a separate repo task.
 
 ## Reference
 

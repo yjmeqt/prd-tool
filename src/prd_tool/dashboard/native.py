@@ -70,9 +70,11 @@ class JsApi:
     envelope into a return value or an ApiError.
     """
 
-    def __init__(self, prd_dir: Path, status_dir: Path | None = None) -> None:
+    def __init__(
+        self, prd_dir: Path, status_dir: Path | None = None, platform: str | None = None
+    ) -> None:
         self._prd_dir = prd_dir.resolve()
-        self._ops = DashboardOps(self._prd_dir, status_dir)
+        self._ops = DashboardOps(self._prd_dir, status_dir, platform)
         # Set by run_native after the webview module is imported so JsApi can
         # ask the window factory to spawn additional windows.
         self._open_window: Any = None
@@ -153,7 +155,12 @@ class JsApi:
             return _err("internal", str(e))
 
 
-def run_native(prd_dir: Path, refs: list[str], status_dir: Path | None = None) -> None:
+def run_native(
+    prd_dir: Path,
+    refs: list[str],
+    status_dir: Path | None = None,
+    platform: str | None = None,
+) -> None:
     """Open one pywebview window per ref (or one index window if refs is empty).
 
     Blocks until the last window closes. ``watchfiles`` runs in a background
@@ -162,7 +169,7 @@ def run_native(prd_dir: Path, refs: list[str], status_dir: Path | None = None) -
     # Imported lazily so unit tests don't need a display.
     import webview
 
-    api = JsApi(prd_dir, status_dir)
+    api = JsApi(prd_dir, status_dir, platform)
     static_dir = Path(__file__).parent / "static"
     src_index = static_dir / "index.html"
     if not src_index.is_file():

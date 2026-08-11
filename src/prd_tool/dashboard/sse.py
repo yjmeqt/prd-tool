@@ -34,8 +34,19 @@ def classify_event(
     if is_status:
         if path.suffix != ".toml":
             return None
+        if any(part.startswith(".") for part in rel.parts):
+            return None
+        # Flat: module/feature.toml → module/feature.xml
+        # Namespaced: platform/module/feature.toml → module/feature.xml
+        parts = rel.parts
+        if len(parts) >= 3:
+            feature_rel = Path(*parts[1:]).with_suffix(".xml")
+        elif len(parts) >= 2:
+            feature_rel = rel.with_suffix(".xml")
+        else:
+            return None
         # We classify status changes as feature changes (prd_changed) so the frontend refreshes
-        return {"type": "prd_changed", "path": str(rel.with_suffix(".xml"))}
+        return {"type": "prd_changed", "path": str(feature_rel)}
 
     if path.suffix != ".xml":
         return None

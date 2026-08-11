@@ -2,22 +2,48 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import xml.etree.ElementTree as ET
 
 from prd_tool.dashboard.edits import EditError, _mutate_and_persist
 from prd_tool.dashboard.repo import list_feature_files
 from prd_tool.overlay import Progress, load_progress, overlay_path, save_progress
-from prd_tool.root import find_root
+from prd_tool.root import detect_status_layout, find_root
 
 
-def migrate_status(dry_run: bool = False) -> int:
+def migrate_status(dry_run: bool = False, platform: str | None = None) -> int:
     root = find_root()
     if root is None:
         print("prd migrate-status: not a PRD repo", file=sys.stderr)
         return 1
 
     status_dir = root.status_dir if root.status_dir is not None else root.repo_root / "prd-status"
+
+    selected = (platform or "").strip() or None
+    if selected is None:
+        env = os.environ.get("PRD_PLATFORM", "").strip()
+        selected = env or root.platform
+
+    if status_dir.is_dir():
+        layout = detect_status_layout(status_dir)
+    else:
+        # Creating fresh: namespaced only when an explicit platform is chosen.
+        layout = "namespaced" if selected else "flat"
+
+    effective_platform: str | None
+    if layout == "namespaced":
+        if not selected:
+            print(
+                "prd migrate-status: namespaced status overlay requires a platform.\n"
+                "  select via: --platform <name> (suggested: ios for historical extraction),\n"
+                "              env PRD_PLATFORM, or [prd].platform in .prd-tool.toml",
+                file=sys.stderr,
+            )
+            return 1
+        effective_platform = selected
+    else:
+        effective_platform = None
 
     files_migrated = 0
     rules_extracted = 0
@@ -41,7 +67,7 @@ def migrate_status(dry_run: bool = False) -> int:
                     qid = f"{req_id}.{rule.get('id', '')}"
                     extracted[qid] = status
 
-        op = overlay_path(status_dir, feature_ref.module, feature_ref.feature)
+        op = overlay_path(status_dir, feature_ref.module, feature_ref.feature, effective_platform)
         existing_progress = None
         if op.exists():
             try:

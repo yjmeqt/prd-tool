@@ -20,14 +20,19 @@ from pathlib import Path
 from prd_tool.dashboard.repo import FeatureRef, build_index, list_feature_files, load_feature
 
 
-def export_static(prd_dir: Path, out_dir: Path, status_dir: Path | None = None) -> dict[str, int]:
+def export_static(
+    prd_dir: Path,
+    out_dir: Path,
+    status_dir: Path | None = None,
+    platform: str | None = None,
+) -> dict[str, int]:
     """Materialize the dashboard as static JSON + assets under ``out_dir``.
 
     Returns counts for the human-friendly CLI summary.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    index_payload = build_index(prd_dir, status_dir)
+    index_payload = build_index(prd_dir, status_dir, platform)
     (out_dir / "index.json").write_text(
         json.dumps(index_payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -37,7 +42,10 @@ def export_static(prd_dir: Path, out_dir: Path, status_dir: Path | None = None) 
     features = 0
     for ref, _ in list_feature_files(prd_dir):
         payload = load_feature(
-            prd_dir, FeatureRef(module=ref.module, feature=ref.feature), status_dir
+            prd_dir,
+            FeatureRef(module=ref.module, feature=ref.feature),
+            status_dir,
+            platform,
         )
         if payload is None:
             continue

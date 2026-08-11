@@ -50,6 +50,27 @@ def test_classify_status_change(tmp_path: Path) -> None:
     }
 
 
+def test_classify_namespaced_status_change(tmp_path: Path) -> None:
+    prd_dir = tmp_path / "prd"
+    status_dir = tmp_path / "prd-status"
+    (status_dir / "ios" / "m").mkdir(parents=True)
+    p = status_dir / "ios" / "m" / "f.toml"
+    p.write_text("[rules]\n", encoding="utf-8")
+    assert classify_event(prd_dir, Change.modified, p, status_dir) == {
+        "type": "prd_changed",
+        "path": "m/f.xml",
+    }
+
+
+def test_classify_status_dotdir_skipped(tmp_path: Path) -> None:
+    prd_dir = tmp_path / "prd"
+    status_dir = tmp_path / "prd-status"
+    (status_dir / ".worktrees" / "m").mkdir(parents=True)
+    p = status_dir / ".worktrees" / "m" / "f.toml"
+    p.write_text("[rules]\n", encoding="utf-8")
+    assert classify_event(prd_dir, Change.modified, p, status_dir) is None
+
+
 def test_classify_invalid_xml(tmp_path: Path) -> None:
     prd_dir = tmp_path / "prd"
     (prd_dir / "m").mkdir(parents=True)
